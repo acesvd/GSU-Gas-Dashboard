@@ -1,0 +1,133 @@
+<!-- ==========================================
+     GSU GAS STATION DASHBOARD
+     Interactive Google Map Structure
+     ========================================== -->
+
+<div class="gsu-map-panel">
+
+    <!-- ======================================
+         RADIUS SLIDER
+         ====================================== -->
+
+    <div class="gsu-map-controls">
+
+        <div class="gsu-radius-header">
+
+            <label for="gsu-radius-slider">
+                Search Radius
+            </label>
+
+            <output
+                id="gsu-radius-value"
+                for="gsu-radius-slider"
+            >
+                2.00 miles
+            </output>
+
+        </div>
+
+        <input
+            id="gsu-radius-slider"
+            class="gsu-radius-slider"
+            type="range"
+            min="0.50"
+            max="3.00"
+            step="0.01"
+            value="2.00"
+        >
+
+        <div class="gsu-radius-labels">
+
+            <span>0.50 mi</span>
+
+            <span>3.00 mi</span>
+
+        </div>
+
+    </div>
+
+
+    <!-- ======================================
+         GOOGLE MAP
+         ====================================== -->
+
+    <div
+        id="gsu-map"
+        class="gsu-map"
+        role="region"
+        aria-label="Interactive map of gas stations near GSU Buckhead Campus"
+    ></div>
+
+
+    <!-- ======================================
+         MAP SUMMARY
+         ====================================== -->
+
+    <div class="gsu-map-summary">
+
+        <div class="gsu-map-count">
+
+            <span class="gsu-summary-label">
+                Stations within radius:
+            </span>
+
+            <strong id="gsu-visible-count">
+                —
+            </strong>
+
+        </div>
+
+        <div class="gsu-map-best">
+
+            <span class="gsu-summary-label">
+                Cheapest eligible station:
+            </span>
+
+            <strong id="gsu-best-station">
+                —
+            </strong>
+
+        </div>
+
+    </div>
+
+
+    <!-- ======================================
+         MAP LEGEND
+         ====================================== -->
+
+    <div class="gsu-map-legend">
+
+        <div class="gsu-legend-item">
+
+            <span class="gsu-legend-dot cheapest"></span>
+
+            <span>
+                Lowest eligible price
+            </span>
+
+        </div>
+
+        <div class="gsu-legend-item">
+
+            <span class="gsu-legend-dot eligible"></span>
+
+            <span>
+                Other eligible prices
+            </span>
+
+        </div>
+
+        <div class="gsu-legend-item">
+
+            <span class="gsu-legend-dot unavailable"></span>
+
+            <span>
+                Missing or outdated prices
+            </span>
+
+        </div>
+
+    </div>
+
+</div>

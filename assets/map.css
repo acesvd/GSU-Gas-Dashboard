@@ -1,0 +1,344 @@
+/* ==================================================
+   GSU GAS STATION DASHBOARD
+   Interactive Google Map Styling
+   ================================================== */
+
+
+/* ==================================================
+   1. MAP PANEL
+   ================================================== */
+
+.gsu-map-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+
+    font-family: Arial, sans-serif;
+    color: var(--st-text-color, #1f2937);
+
+    box-sizing: border-box;
+}
+
+.gsu-map-panel * {
+    box-sizing: border-box;
+}
+
+
+/* ==================================================
+   2. RADIUS SLIDER CONTAINER
+   ================================================== */
+
+.gsu-map-controls {
+    width: 100%;
+
+    padding: 18px 20px;
+
+    background: var(
+        --st-secondary-background-color,
+        #f8fafc
+    );
+
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 12px;
+}
+
+
+/* Radius label and selected value */
+
+.gsu-radius-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 18px;
+}
+
+.gsu-radius-header label {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+#gsu-radius-value {
+    font-size: 18px;
+    font-weight: 700;
+
+    color: var(--st-primary-color, #cc3047);
+    font-variant-numeric: tabular-nums;
+}
+
+
+/* ==================================================
+   3. INTERACTIVE RADIUS SLIDER
+   ================================================== */
+
+.gsu-radius-slider {
+    -webkit-appearance: none;
+    appearance: none;
+
+    display: block;
+
+    width: 100%;
+    height: 8px;
+
+    margin: 0;
+
+    border: none;
+    border-radius: 10px;
+
+    cursor: pointer;
+
+    background: linear-gradient(
+        to right,
+
+        var(--st-primary-color, #cc3047) 0%,
+
+        var(--st-primary-color, #cc3047)
+        var(--gsu-slider-progress, 60%),
+
+        #d9e2ec
+        var(--gsu-slider-progress, 60%),
+
+        #d9e2ec 100%
+    );
+}
+
+
+/* Chrome, Safari, and Edge slider thumb */
+
+.gsu-radius-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+
+    width: 22px;
+    height: 22px;
+
+    background: #ffffff;
+
+    border: 4px solid
+        var(--st-primary-color, #cc3047);
+
+    border-radius: 50%;
+
+    cursor: grab;
+
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+
+/* Firefox slider thumb */
+
+.gsu-radius-slider::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+
+    background: #ffffff;
+
+    border: 4px solid
+        var(--st-primary-color, #cc3047);
+
+    border-radius: 50%;
+
+    cursor: grab;
+
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+
+/* Hover effects */
+
+.gsu-radius-slider:hover::-webkit-slider-thumb {
+    box-shadow:
+        0 0 0 5px rgba(204, 48, 71, 0.12);
+}
+
+.gsu-radius-slider:hover::-moz-range-thumb {
+    box-shadow:
+        0 0 0 5px rgba(204, 48, 71, 0.12);
+}
+
+
+/* Keyboard accessibility */
+
+.gsu-radius-slider:focus-visible {
+    outline: 2px solid
+        var(--st-primary-color, #cc3047);
+
+    outline-offset: 8px;
+}
+
+
+/* ==================================================
+   4. SLIDER MIN/MAX LABELS
+   ================================================== */
+
+.gsu-radius-labels {
+    display: flex;
+    justify-content: space-between;
+
+    margin-top: 14px;
+
+    font-size: 12px;
+    color: #64748b;
+}
+
+
+/* ==================================================
+   5. GOOGLE MAP CONTAINER
+   ================================================== */
+
+.gsu-map {
+    width: 100%;
+    height: 425px;
+
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 12px;
+
+    overflow: hidden;
+
+    background-color: #e5e7eb;
+}
+
+
+/* ==================================================
+   6. MAP SUMMARY
+   ================================================== */
+
+.gsu-map-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    flex-wrap: wrap;
+    gap: 16px;
+
+    padding: 14px 18px;
+
+    background: var(
+        --st-secondary-background-color,
+        #f8fafc
+    );
+
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 10px;
+}
+
+.gsu-map-count,
+.gsu-map-best {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.gsu-summary-label {
+    font-size: 12px;
+    color: #64748b;
+}
+
+#gsu-visible-count {
+    font-size: 19px;
+    font-weight: 700;
+
+    font-variant-numeric: tabular-nums;
+}
+
+#gsu-best-station {
+    font-size: 15px;
+    font-weight: 600;
+
+    color: #16a34a;
+}
+
+
+/* ==================================================
+   7. MAP LEGEND
+   ================================================== */
+
+.gsu-map-legend {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+
+    gap: 12px 22px;
+
+    padding: 6px 4px;
+
+    font-size: 12px;
+}
+
+.gsu-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.gsu-legend-dot {
+    display: inline-block;
+
+    width: 12px;
+    height: 12px;
+
+    border-radius: 50%;
+
+    border: 2px solid #ffffff;
+
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+
+/* Cheapest eligible station: green */
+
+.gsu-legend-dot.cheapest {
+    background-color: #16a34a;
+}
+
+
+/* Other eligible stations: blue */
+
+.gsu-legend-dot.eligible {
+    background-color: #2563eb;
+}
+
+
+/* Missing or outdated prices: gray */
+
+.gsu-legend-dot.unavailable {
+    background-color: #94a3b8;
+}
+
+
+/* ==================================================
+   8. RESPONSIVE DESIGN
+   ================================================== */
+
+@media (max-width: 768px) {
+
+    .gsu-map-controls {
+        padding: 16px;
+    }
+
+    .gsu-radius-header label {
+        font-size: 14px;
+    }
+
+    #gsu-radius-value {
+        font-size: 16px;
+    }
+
+    .gsu-map {
+        height: 350px;
+    }
+
+    .gsu-map-summary {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .gsu-map-legend {
+        gap: 10px 16px;
+    }
+
+}
