@@ -42,7 +42,7 @@ from ui.charts import render_price_charts
 # ============================================================
 
 st.set_page_config(
-    page_title="GSU Gas Station Dashboard",
+    page_title="What is the best gas station to fill up near campus?",
     page_icon="⛽",
     layout="wide",
 )
@@ -56,11 +56,89 @@ CAMPUS_LON = -84.370042
 # 2. DASHBOARD HEADER
 # ============================================================
 
-st.title("⛽ GSU Gas Station Dashboard")
-
-st.write(
-    "Find and compare affordable gas stations near "
-    "Georgia State University's Buckhead Campus."
+st.markdown(
+    """
+    <style>
+      .story-eyebrow {
+        color: #64748b;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin: 0.25rem 0 0.55rem 0;
+      }
+      .story-title {
+        color: #102A43;
+        font-size: clamp(3.75rem, 6vw, 5.5rem);
+        line-height: 1.08;
+        letter-spacing: -0.035em;
+        margin: 0 0 0.9rem 0;
+        max-width: 1100px;
+      }
+      .story-accent {
+        width: 64px;
+        height: 4px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #2563eb 0%, #38bdf8 100%);
+        margin-bottom: 1.35rem;
+      }
+      .story-card {
+        background: linear-gradient(135deg, #eff6ff 0%, #ffffff 72%);
+        border: 1px solid #bfdbfe;
+        border-left: 7px solid #2563eb;
+        border-radius: 14px;
+        padding: 1.15rem 1.25rem;
+        margin: 0 0 1.25rem 0;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035);
+      }
+      .story-kicker {
+        color: #1d4ed8;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 0.35rem;
+      }
+      .story-sentence {
+        color: #1e293b;
+        font-size: clamp(1.35rem, 2vw, 1.65rem);
+        line-height: 1.45;
+        margin: 0;
+      }
+      .story-price {
+        color: #ea580c;
+        font-size: 1.45em;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+      .story-context-card {
+        background: #ffffff;
+        border: 1px solid #dbeafe;
+        border-radius: 14px;
+        min-height: 112px;
+        padding: 1rem 1.05rem;
+        margin-bottom: 1.35rem;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.025);
+      }
+      .story-context-label {
+        color: #2563eb;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 0.35rem;
+      }
+      .story-context-value {
+        color: #334155;
+        font-size: 1.25rem;
+        line-height: 1.42;
+      }
+    </style>
+    <div class="story-eyebrow">Campus decision guide · Nov 23, 2026</div>
+    <h1 class="story-title">What is the best gas station to fill up near campus?</h1>
+    <div class="story-accent"></div>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -318,10 +396,147 @@ else:
 
 
 # ============================================================
-# 10. DASHBOARD OVERVIEW
+# 10. DASHBOARD HEADER
 # ============================================================
 
-st.subheader("Overview")
+if data_loaded and not filtered.empty:
+
+    prices = pd.to_numeric(
+        filtered["Regular Price"],
+        errors="coerce",
+    ).dropna()
+
+    price_spread = (
+        float(prices.max()) - float(prices.min())
+        if not prices.empty
+        else 0.0
+    )
+
+    ten_gallon_difference = price_spread * 10
+
+    st.markdown(
+        '<div class="story-card">'
+        '<div class="story-kicker">The cost of choosing</div>'
+        '<p class="story-sentence">The same gallon costs up to '
+        f'<span class="story-price">${price_spread:.2f}</span> more '
+        "depending on where you stop. "
+        "That can mean "
+        f'<span class="story-price">${ten_gallon_difference:.2f}</span> '
+        "on a 10-gallon fill-up.</p>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+else:
+
+    st.markdown(
+        '<div class="story-card">'
+        '<div class="story-kicker">The cost of choosing</div>'
+        '<p class="story-sentence">The same gallon can cost more '
+        "depending on where you stop. "
+        "Compare the price spread below to see the difference "
+        "on a 10-gallon fill-up.</p>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+question_col, audience_col, scope_col = st.columns(3)
+
+with question_col:
+    st.markdown(
+        '<div class="story-context-card">'
+        '<div class="story-context-label">The question</div>'
+        '<div class="story-context-value">Which nearby station is '
+        "the best value, balancing price, distance and price "
+        "freshness?</div></div>",
+        unsafe_allow_html=True,
+    )
+
+with audience_col:
+    st.markdown(
+        '<div class="story-context-card">'
+        '<div class="story-context-label">The decision</div>'
+        '<div class="story-context-value">Students and staff driving '
+        "to campus who need regular unleaded gas.</div></div>",
+        unsafe_allow_html=True,
+    )
+
+with scope_col:
+    st.markdown(
+        '<div class="story-context-card">'
+        '<div class="story-context-label">The scope</div>'
+        f'<div class="story-context-value">Stations within '
+        f"{radius:.2f} miles, using one Google Maps snapshot.</div></div>",
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# 11. DASHBOARD OVERVIEW
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+      .overview-heading {
+        color: #64748b;
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin: 0.45rem 0 1.35rem 0;
+      }
+      .overview-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 1.35rem;
+      }
+      .overview-stat {
+        min-height: 150px;
+        background: #ffffff;
+        border: 1px solid #edf2f7;
+        border-radius: 14px;
+        padding: 1.15rem 1.25rem 1rem 1.25rem;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035);
+      }
+      .overview-value {
+        color: #171717;
+        font-size: clamp(2.75rem, 4vw, 4rem);
+        font-weight: 800;
+        line-height: 0.95;
+        letter-spacing: -0.055em;
+        margin-bottom: 1.05rem;
+        white-space: nowrap;
+      }
+      .overview-label {
+        color: #64748b;
+        font-size: clamp(1.25rem, 1.8vw, 1.5rem);
+        line-height: 1.2;
+      }
+      .overview-callout {
+        border-left: 7px solid #2563eb;
+        background: linear-gradient(90deg, #eff6ff 0%, #ffffff 100%);
+        border-radius: 4px;
+        color: #111827;
+        font-size: clamp(1.25rem, 1.8vw, 1.5rem);
+        line-height: 1.45;
+        padding: 0.95rem 1.25rem;
+        margin: 0 0 1.35rem 0;
+      }
+      .overview-callout strong {
+        font-weight: 800;
+      }
+      @media (max-width: 800px) {
+        .overview-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+    <div class="overview-heading">Overview</div>
+    """,
+    unsafe_allow_html=True,
+)
 
 col1, col2, col3 = st.columns(3)
 
@@ -345,80 +560,53 @@ else:
 
     stations_found = "—"
     eligible_count = "—"
+    lowest_price = None
     cheapest_price = "—"
 
 
-with col1:
-
-    st.metric(
-        label="Stations within radius",
-        value=stations_found,
-    )
-
-with col2:
-
-    st.metric(
-        label="Stations with eligible prices",
-        value=eligible_count,
-    )
-
-with col3:
-
-    st.metric(
-        label="Lowest gas price",
-        value=cheapest_price,
-    )
-
-
-# ============================================================
-# 11. BEST GAS STATION RECOMMENDATIONS
-# ============================================================
-
-st.subheader("🏆 Best Gas Station Options")
-
-if not data_loaded:
-
-    st.info(
-        "— Gas station recommendations will appear "
-        "after loading data."
-    )
-
-elif not filtered.empty:
-
-    # Find the closest station offering
-    # the lowest eligible price.
-
-    best_station = get_best_station(
-        filtered
-    )
-
-    # Identify any stations tied for the lowest price.
-    cheapest_stations = get_cheapest_stations(
-        filtered
-    )
-
-    st.success(
-        "Closest station offering the lowest price: "
-        f"{best_station['Station']} "
-        f"({best_station['Brand']}) — "
-        f"${best_station['Regular Price']:.2f}/gal, "
-        f"{best_station['Distance (miles)']:.2f} "
-        "miles away."
-    )
-
-    if len(cheapest_stations) > 1:
-
-        st.info(
-            f"{len(cheapest_stations)} stations "
-            "are tied for the lowest gas price."
-        )
-
+if lowest_price is not None:
+    lowest_display = f"${lowest_price:.2f}"
 else:
+    lowest_display = "—"
 
-    st.warning(
-        "No stations with eligible gas prices were "
-        "found within your selected radius."
+st.markdown(
+    '<div class="overview-grid">'
+    f'<div class="overview-stat"><div class="overview-value">{stations_found}</div>'
+    '<div class="overview-label">Stations within radius</div></div>'
+    f'<div class="overview-stat"><div class="overview-value">{eligible_count}</div>'
+    '<div class="overview-label">With an eligible price</div></div>'
+    f'<div class="overview-stat"><div class="overview-value">{lowest_display}</div>'
+    '<div class="overview-label">Lowest gas price</div></div>'
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+if data_loaded and not filtered.empty:
+    best_station = get_best_station(filtered)
+    cheapest_stations = get_cheapest_stations(filtered)
+
+    st.markdown(
+        '<div class="overview-callout">'
+        "<strong>Closest station with the lowest price:</strong> "
+        f"{best_station['Station']} "
+        f"({best_station['Brand']}), "
+        f"${best_station['Regular Price']:.2f}/gal, "
+        f"{best_station['Distance (miles)']:.2f} miles away."
+        "</div>",
+        unsafe_allow_html=True,
     )
+
+elif not data_loaded:
+    st.markdown(
+        '<div class="overview-callout">'
+        "<strong>Best station:</strong> "
+        "Load gas station data to see the closest lowest-priced option."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
 
 
 # ============================================================
@@ -444,7 +632,40 @@ render_price_charts(
 # 13. INTERACTIVE GAS STATION MAP
 # ============================================================
 
-st.subheader("🗺️ Gas Stations Near Campus")
+st.markdown(
+    """
+    <style>
+      .map-section-eyebrow {
+        color: #2563eb;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin: 1.9rem 0 0.35rem 0;
+      }
+      .map-section-title {
+        color: #102a43;
+        font-size: clamp(2rem, 3vw, 3rem);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.45rem 0;
+      }
+      .map-section-description {
+        color: #64748b;
+        font-size: 1.12rem;
+        line-height: 1.45;
+        max-width: 760px;
+        margin: 0 0 1.1rem 0;
+      }
+    </style>
+    <div class="map-section-eyebrow">Explore the area</div>
+    <h2 class="map-section-title">Gas Stations Near Campus</h2>
+    <p class="map-section-description">
+      Adjust the search radius and compare eligible stations around campus.
+    </p>
+    """,
+    unsafe_allow_html=True,
+)
 
 # The map and smooth radius slider are managed
 # by ui/map.py and the assets/ folder.
@@ -466,11 +687,91 @@ render_map(
 # 14. AVAILABLE GAS STATIONS TABLE
 # ============================================================
 
-st.subheader("Available Gas Stations")
+st.markdown(
+    """
+    <style>
+      .table-section-eyebrow {
+        color: #2563eb;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin: 1.9rem 0 0.35rem 0;
+      }
+      .table-section-title {
+        color: #102a43;
+        font-size: clamp(2rem, 3vw, 3rem);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.45rem 0;
+      }
+      .table-section-description {
+        color: #64748b;
+        font-size: 1.12rem;
+        line-height: 1.45;
+        max-width: 760px;
+        margin: 0 0 1.1rem 0;
+      }
+    </style>
+    <div class="table-section-eyebrow">Review every option</div>
+    <h2 class="table-section-title">Available Gas Stations</h2>
+    <p class="table-section-description">
+      Review station details, regular gas prices and reported freshness
+      within the selected radius.
+    </p>
+    """,
+    unsafe_allow_html=True,
+)
 
-st.dataframe(
-    filtered,
-    use_container_width=True,
+def highlight_lowest_price(prices):
+    numeric_prices = pd.to_numeric(prices, errors="coerce")
+    lowest_price = numeric_prices.min()
+
+    return [
+        (
+            "background-color: #dcfce7; color: #166534; font-weight: 800"
+            if pd.notna(price) and price == lowest_price
+            else "color: #1d4ed8; font-weight: 700"
+            if pd.notna(price)
+            else ""
+        )
+        for price in numeric_prices
+    ]
+
+
+table_styles = [
+    {
+        "selector": "thead th",
+        "props": [
+            ("background-color", "#2563eb"),
+            ("color", "#ffffff"),
+            ("font-weight", "800"),
+            ("border-bottom", "2px solid #1d4ed8"),
+            ("padding", "0.75rem"),
+        ],
+    },
+    {
+        "selector": "tbody tr:nth-child(even)",
+        "props": [("background-color", "#eff6ff")],
+    },
+    {
+        "selector": "tbody td",
+        "props": [
+            ("padding", "0.65rem 0.75rem"),
+            ("border-bottom", "1px solid #dbeafe"),
+        ],
+    },
+]
+
+styled_table = (
+    filtered.style
+    .set_table_styles(table_styles)
+    .apply(highlight_lowest_price, subset=["Regular Price"])
+)
+
+st.container(border=True).dataframe(
+    styled_table,
+    width="stretch",
     hide_index=True,
 )
 
