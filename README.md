@@ -69,6 +69,12 @@ Recommendations account for:
 
 When multiple stations share the lowest price, the dashboard selects the closest station among those tied.
 
+### Detour Value Calculator
+
+The dashboard compares the cheapest eligible station with the nearest eligible station. Users can set gallons per fill-up and vehicle efficiency to estimate pump savings, extra fuel cost for the round-trip detour, and net savings. The estimate uses straight-line distances, so it is directional rather than a driving-route quote.
+
+The dashboard also provides concise recommendations based on the selected radius, price freshness, and station prices, followed by context on data coverage and snapshot limitations.
+
 ### Price Comparison Charts
 
 The dashboard includes:
@@ -97,7 +103,9 @@ Users can customize:
 | Setting | Description |
 |---|---|
 | Search Radius | Maximum straight-line distance from campus |
-| Maximum Price Age | Maximum acceptable age of a reported gas price |
+| Maximum Time Since Update | Maximum hours since a reported gas price was updated |
+| Gallons per Fill-up | Fuel volume used by the detour estimate |
+| Car Efficiency | Vehicle miles per gallon used to estimate detour fuel cost |
 | Data Refresh | Manually request updated data from Google Places |
 | Design Preview | Display the dashboard layout without loading Places data |
 
@@ -119,6 +127,10 @@ The dashboard also summarizes:
 - Listings missing price timestamps.
 - Listings sharing the same address.
 - Number of unique brands.
+
+### Filtered Station Export
+
+Download the stations currently shown in the table as a CSV. The export follows the selected radius and price-update window.
 
 ---
 
@@ -576,7 +588,7 @@ Radius changes do not require additional Places API searches.
 
 ### Adjust Maximum Price Age
 
-Use the sidebar's **Maximum Price Age (hours)** control to filter out older gas prices.
+Use the sidebar's **Maximum time since update (hours)** control to limit how long ago a gas price was reported.
 
 For example:
 
@@ -698,6 +710,8 @@ Stations without usable regular gas prices may be included in station discovery 
 Nearby Search (New) returns at most 20 results per request.
 
 The application uses overlapping search areas to improve coverage, but complete discovery of every gas station within the region is not guaranteed.
+
+The dashboard reports when one or more searches reach Google's 20-result limit. Listings without usable, recent fuel prices are excluded from eligible-price comparisons.
 
 ### Straight-Line Distance
 

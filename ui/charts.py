@@ -33,7 +33,7 @@ CHART_TEMPLATE = "plotly_white"
 # 2. EMPTY CHART PLACEHOLDER
 # ============================================================
 
-def empty_chart(title, height=350):
+def empty_chart(height=350):
     """
     Create an empty chart placeholder.
 
@@ -46,7 +46,6 @@ def empty_chart(title, height=350):
     fig = go.Figure()
 
     fig.update_layout(
-        title=title,
         template=CHART_TEMPLATE,
         height=height,
 
@@ -78,7 +77,7 @@ def empty_chart(title, height=350):
         margin=dict(
             l=20,
             r=20,
-            t=60,
+            t=20,
             b=20,
         ),
     )
@@ -100,10 +99,8 @@ def create_station_price_chart(eligible_df):
     DO NOT get stacked together.
     """
 
-    title = "Price per Gallon by Station"
-
     if eligible_df is None or eligible_df.empty:
-        return empty_chart(title)
+        return empty_chart()
 
     chart_df = (
         eligible_df
@@ -172,8 +169,6 @@ def create_station_price_chart(eligible_df):
             "Place ID": False,
         },
 
-        title=title,
-
         labels={
             "Regular Price": "Regular Gas Price ($/gal)",
             "_station_label": "Gas Station",
@@ -215,7 +210,7 @@ def create_station_price_chart(eligible_df):
         margin=dict(
             l=30,
             r=60,
-            t=60,
+            t=20,
             b=50,
         ),
     )
@@ -235,10 +230,8 @@ def create_price_distance_chart(eligible_df):
     Each dot represents one individual station.
     """
 
-    title = "Gas Price vs. Distance"
-
     if eligible_df is None or eligible_df.empty:
-        return empty_chart(title)
+        return empty_chart()
 
     chart_df = eligible_df.copy()
 
@@ -258,8 +251,6 @@ def create_price_distance_chart(eligible_df):
             "Price Age (hours)": ":.1f",
             "Place ID": False,
         },
-
-        title=title,
 
         labels={
             "Distance (miles)": "Distance from Campus (miles)",
@@ -292,7 +283,7 @@ def create_price_distance_chart(eligible_df):
         margin=dict(
             l=40,
             r=20,
-            t=60,
+            t=20,
             b=50,
         ),
     )
@@ -312,10 +303,8 @@ def create_brand_price_chart(eligible_df):
     eligible gas stations.
     """
 
-    title = "Average Regular Gas Price by Brand"
-
     if eligible_df is None or eligible_df.empty:
-        return empty_chart(title)
+        return empty_chart()
 
     # Use our processing module for aggregation.
     brand_df = summarize_brand_prices(
@@ -323,7 +312,7 @@ def create_brand_price_chart(eligible_df):
     )
 
     if brand_df.empty:
-        return empty_chart(title)
+        return empty_chart()
 
     # Sort brands from cheapest average to highest.
     brand_df = (
@@ -344,8 +333,6 @@ def create_brand_price_chart(eligible_df):
         hover_data={
             "Station Count": True,
         },
-
-        title=title,
 
         labels={
             "Regular Price": "Average Regular Gas Price ($/gal)",
@@ -380,7 +367,7 @@ def create_brand_price_chart(eligible_df):
         margin=dict(
             l=40,
             r=20,
-            t=60,
+            t=20,
             b=50,
         ),
     )
@@ -472,6 +459,7 @@ def render_price_charts(eligible_df):
             st.plotly_chart(
                 fig_station,
                 use_container_width=True,
+                key="station-price-chart",
             )
 
     with chart_col2:
@@ -489,6 +477,7 @@ def render_price_charts(eligible_df):
             st.plotly_chart(
                 fig_distance,
                 use_container_width=True,
+                key="price-distance-chart",
             )
 
     # --------------------------------------------------------
@@ -508,4 +497,5 @@ def render_price_charts(eligible_df):
         st.plotly_chart(
             fig_brand,
             use_container_width=True,
+            key="brand-price-chart",
         )
