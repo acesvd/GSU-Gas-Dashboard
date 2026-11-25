@@ -56,18 +56,15 @@ Features include:
 
 The radius slider operates locally using previously retrieved data, so adjusting it does not require additional Google Places searches.
 
-### Gas Station Recommendations
+### Best-Value Station Summary
 
-The dashboard identifies the lowest-priced eligible gas stations within the selected radius.
+The dashboard highlights the lowest-priced eligible station within the selected radius. When multiple stations share the lowest price, it selects the closest station.
 
-Recommendations account for:
+### Detour Value Calculator
 
-- Regular unleaded gas price.
-- Distance from campus.
-- Availability of price information.
-- Age of reported prices.
+The dashboard compares the cheapest eligible station with the nearest eligible station. Users can set gallons per fill-up and vehicle efficiency to estimate pump savings, extra fuel cost for the round-trip detour, and net savings. The estimate uses straight-line distances, so it is directional rather than a driving-route quote.
 
-When multiple stations share the lowest price, the dashboard selects the closest station among those tied.
+The poster presents the full story, recommendations, and data limitations; the dashboard focuses on interactive exploration.
 
 ### Price Comparison Charts
 
@@ -97,7 +94,9 @@ Users can customize:
 | Setting | Description |
 |---|---|
 | Search Radius | Maximum straight-line distance from campus |
-| Maximum Price Age | Maximum acceptable age of a reported gas price |
+| Maximum Time Since Update | Maximum hours since a reported gas price was updated |
+| Gallons per Fill-up | Fuel volume used by the detour estimate |
+| Car Efficiency | Vehicle miles per gallon used to estimate detour fuel cost |
 | Data Refresh | Manually request updated data from Google Places |
 | Design Preview | Display the dashboard layout without loading Places data |
 
@@ -120,6 +119,10 @@ The dashboard also summarizes:
 - Listings sharing the same address.
 - Number of unique brands.
 
+### Filtered Station Export
+
+Download the stations currently shown in the table as a CSV. The export follows the selected radius and price-update window.
+
 ---
 
 ## 3. How the Dashboard Works
@@ -135,7 +138,7 @@ flowchart TD
     C["Deduplicate and store results"]
     D["Clean and validate data"]
     E["Apply radius and price-age filters"]
-    F["Metrics, recommendations, charts, and map"]
+    F["Metrics, detour calculator, charts, map, and table"]
 
     A --> B
     B --> C
@@ -187,7 +190,7 @@ Filters include:
 2. Regular unleaded gas price must be available and positive.
 3. Price age must be within the selected maximum age.
 
-Stations meeting these conditions are used for price comparisons and recommendations.
+Stations meeting these conditions are used for price comparisons, the best-value summary, and the detour calculator.
 
 ### Step 4: Identify the Best Options
 
@@ -199,14 +202,15 @@ The application:
 
 This currently defines the "best" option as the **lowest-priced eligible station, with distance used as a tiebreaker**.
 
-Driving costs and driving time are not yet included in the recommendation calculation.
+The station summary uses price and straight-line distance; the detour calculator separately estimates fuel cost using the entered fuel efficiency.
 
 ### Step 5: Display Results
 
 The filtered data is sent to the dashboard components:
 
 - Overview metrics.
-- Gas station recommendations.
+- Best-value station summary.
+- Detour value calculator.
 - Price comparison charts.
 - Interactive Google Map.
 - Available stations table.
@@ -254,7 +258,7 @@ GSU-Gas-Dashboard/
 | `app.py` | Main Streamlit application; coordinates dashboard components |
 | `services/google_places.py` | Handles Google Places API requests and parses station data |
 | `processing/cleaning.py` | Cleans, validates, and summarizes station data |
-| `processing/filtering.py` | Applies search filters and calculates recommendations |
+| `processing/filtering.py` | Applies search filters and selects the best-value option |
 | `ui/map.py` | Connects the custom map component to Streamlit |
 | `ui/charts.py` | Creates and displays Plotly charts |
 | `assets/map.html` | HTML structure for the interactive map |
@@ -568,7 +572,7 @@ Use the slider above the map to select a radius.
 
 The map circle and displayed stations respond to changes in the selected radius.
 
-The dashboard metrics, recommendations, charts, and station table also update.
+The dashboard metrics, best-value summary, detour calculator, charts, map, and station table also update.
 
 Radius changes do not require additional Places API searches.
 
@@ -576,7 +580,7 @@ Radius changes do not require additional Places API searches.
 
 ### Adjust Maximum Price Age
 
-Use the sidebar's **Maximum Price Age (hours)** control to filter out older gas prices.
+Use the sidebar's **Maximum time since update (hours)** control to limit how long ago a gas price was reported.
 
 For example:
 
@@ -691,13 +695,15 @@ These fields are processed using Pandas and passed to the dashboard components.
 
 Not every Google Places listing includes fuel price information.
 
-Stations without usable regular gas prices may be included in station discovery results but are excluded from eligible-price comparisons and recommendations.
+Stations without usable regular gas prices may be included in station discovery results but are excluded from eligible-price comparisons and the best-value summary.
 
 ### Geographic Coverage
 
 Nearby Search (New) returns at most 20 results per request.
 
 The application uses overlapping search areas to improve coverage, but complete discovery of every gas station within the region is not guaranteed.
+
+The dashboard reports when one or more searches reach Google's 20-result limit. Listings without usable, recent fuel prices are excluded from eligible-price comparisons.
 
 ### Straight-Line Distance
 
@@ -720,9 +726,9 @@ Price timestamps are used to identify how recently prices were updated.
 
 Users should verify gas prices before traveling.
 
-### Recommendation Method
+### Best-Value Selection Method
 
-The current recommendation method identifies the lowest available eligible price and uses proximity to break ties.
+The best-value summary identifies the lowest available eligible price and uses proximity to break ties.
 
 It does not currently optimize for:
 
@@ -891,7 +897,7 @@ The codebase separates backend processing from presentation components so team m
 |---|---|
 | API Integration | `services/google_places.py` |
 | Data Quality and Processing | `processing/cleaning.py` |
-| Filtering and Recommendations | `processing/filtering.py` |
+| Filtering and Best-Value Selection | `processing/filtering.py` |
 | Interactive Map | `ui/map.py`, `assets/` |
 | Charts and Visualizations | `ui/charts.py` |
 | Overall Dashboard | `app.py` |
@@ -920,7 +926,7 @@ Potential next steps include:
 
 - Improved dashboard layout.
 - Consistent styling and color palette.
-- More intuitive recommendation cards.
+- More detailed best-value station insights.
 - Improved map presentation.
 - Responsive layouts.
 - Additional interactive elements.

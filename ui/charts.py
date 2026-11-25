@@ -33,7 +33,7 @@ CHART_TEMPLATE = "plotly_white"
 # 2. EMPTY CHART PLACEHOLDER
 # ============================================================
 
-def empty_chart(title, height=350):
+def empty_chart(height=350):
     """
     Create an empty chart placeholder.
 
@@ -46,7 +46,6 @@ def empty_chart(title, height=350):
     fig = go.Figure()
 
     fig.update_layout(
-        title=title,
         template=CHART_TEMPLATE,
         height=height,
 
@@ -78,7 +77,7 @@ def empty_chart(title, height=350):
         margin=dict(
             l=20,
             r=20,
-            t=60,
+            t=20,
             b=20,
         ),
     )
@@ -100,10 +99,8 @@ def create_station_price_chart(eligible_df):
     DO NOT get stacked together.
     """
 
-    title = "Price per Gallon by Station"
-
     if eligible_df is None or eligible_df.empty:
-        return empty_chart(title)
+        return empty_chart()
 
     chart_df = (
         eligible_df
@@ -172,8 +169,6 @@ def create_station_price_chart(eligible_df):
             "Place ID": False,
         },
 
-        title=title,
-
         labels={
             "Regular Price": "Regular Gas Price ($/gal)",
             "_station_label": "Gas Station",
@@ -215,7 +210,7 @@ def create_station_price_chart(eligible_df):
         margin=dict(
             l=30,
             r=60,
-            t=60,
+            t=20,
             b=50,
         ),
     )
@@ -235,10 +230,8 @@ def create_price_distance_chart(eligible_df):
     Each dot represents one individual station.
     """
 
-    title = "Gas Price vs. Distance"
-
     if eligible_df is None or eligible_df.empty:
-        return empty_chart(title)
+        return empty_chart()
 
     chart_df = eligible_df.copy()
 
@@ -258,8 +251,6 @@ def create_price_distance_chart(eligible_df):
             "Price Age (hours)": ":.1f",
             "Place ID": False,
         },
-
-        title=title,
 
         labels={
             "Distance (miles)": "Distance from Campus (miles)",
@@ -292,7 +283,7 @@ def create_price_distance_chart(eligible_df):
         margin=dict(
             l=40,
             r=20,
-            t=60,
+            t=20,
             b=50,
         ),
     )
@@ -312,10 +303,8 @@ def create_brand_price_chart(eligible_df):
     eligible gas stations.
     """
 
-    title = "Average Regular Gas Price by Brand"
-
     if eligible_df is None or eligible_df.empty:
-        return empty_chart(title)
+        return empty_chart()
 
     # Use our processing module for aggregation.
     brand_df = summarize_brand_prices(
@@ -323,7 +312,7 @@ def create_brand_price_chart(eligible_df):
     )
 
     if brand_df.empty:
-        return empty_chart(title)
+        return empty_chart()
 
     # Sort brands from cheapest average to highest.
     brand_df = (
@@ -344,8 +333,6 @@ def create_brand_price_chart(eligible_df):
         hover_data={
             "Station Count": True,
         },
-
-        title=title,
 
         labels={
             "Regular Price": "Average Regular Gas Price ($/gal)",
@@ -380,7 +367,7 @@ def create_brand_price_chart(eligible_df):
         margin=dict(
             l=40,
             r=20,
-            t=60,
+            t=20,
             b=50,
         ),
     )
@@ -408,43 +395,107 @@ def render_price_charts(eligible_df):
     # Station-level comparisons
     # --------------------------------------------------------
 
-    st.subheader("Gas Price Comparisons")
+    st.markdown(
+        """
+        <style>
+          .comparison-header {
+            margin: 1.9rem 0 1.1rem 0;
+          }
+          .comparison-eyebrow {
+            color: #2563eb;
+            font-size: 0.95rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 0.35rem;
+          }
+          .comparison-title {
+            color: #102a43;
+            font-size: clamp(2rem, 3vw, 3rem);
+            line-height: 1.08;
+            letter-spacing: -0.03em;
+            margin: 0 0 0.45rem 0;
+          }
+          .comparison-description {
+            color: #64748b;
+            font-size: 1.12rem;
+            line-height: 1.45;
+            max-width: 760px;
+            margin: 0;
+          }
+          .chart-card-label {
+            color: #334155;
+            font-size: 1.05rem;
+            font-weight: 800;
+            margin: 0.15rem 0 0.5rem 0;
+          }
+        </style>
+        <div class="comparison-header">
+          <div class="comparison-eyebrow">Compare the options</div>
+          <h2 class="comparison-title">Gas Price Comparisons</h2>
+          <p class="comparison-description">
+            See how each station compares on price, and whether a lower
+            price is worth the extra distance.
+          </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     chart_col1, chart_col2 = st.columns(2)
 
     with chart_col1:
 
-        fig_station = create_station_price_chart(
-            eligible_df
-        )
+        with st.container(border=True):
+            st.markdown(
+                '<div class="chart-card-label">Price at each station</div>',
+                unsafe_allow_html=True,
+            )
 
-        st.plotly_chart(
-            fig_station,
-            use_container_width=True,
-        )
+            fig_station = create_station_price_chart(
+                eligible_df
+            )
+
+            st.plotly_chart(
+                fig_station,
+                use_container_width=True,
+                key="station-price-chart",
+            )
 
     with chart_col2:
 
-        fig_distance = create_price_distance_chart(
-            eligible_df
-        )
+        with st.container(border=True):
+            st.markdown(
+                '<div class="chart-card-label">Price vs. distance</div>',
+                unsafe_allow_html=True,
+            )
 
-        st.plotly_chart(
-            fig_distance,
-            use_container_width=True,
-        )
+            fig_distance = create_price_distance_chart(
+                eligible_df
+            )
+
+            st.plotly_chart(
+                fig_distance,
+                use_container_width=True,
+                key="price-distance-chart",
+            )
 
     # --------------------------------------------------------
     # Brand-level comparison
     # --------------------------------------------------------
 
-    st.subheader("Average Gas Price by Brand")
+    with st.container(border=True):
+        st.markdown(
+            '<div class="chart-card-label">Average price by brand</div>',
+            unsafe_allow_html=True,
+        )
 
-    fig_brand = create_brand_price_chart(
-        eligible_df
-    )
+        fig_brand = create_brand_price_chart(
+            eligible_df
+        )
 
-    st.plotly_chart(
-        fig_brand,
-        use_container_width=True,
-    )
+        st.plotly_chart(
+            fig_brand,
+            use_container_width=True,
+            key="brand-price-chart",
+        )

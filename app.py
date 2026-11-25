@@ -1,4 +1,6 @@
 
+from html import escape
+
 import requests
 import pandas as pd
 import streamlit as st
@@ -42,7 +44,7 @@ from ui.charts import render_price_charts
 # ============================================================
 
 st.set_page_config(
-    page_title="GSU Gas Station Dashboard",
+    page_title="What is the best gas station to fill up near campus?",
     page_icon="⛽",
     layout="wide",
 )
@@ -56,11 +58,36 @@ CAMPUS_LON = -84.370042
 # 2. DASHBOARD HEADER
 # ============================================================
 
-st.title("⛽ GSU Gas Station Dashboard")
-
-st.write(
-    "Find and compare affordable gas stations near "
-    "Georgia State University's Buckhead Campus."
+st.markdown(
+    """
+    <style>
+      h1.story-title {
+        color: #102A43;
+        font-size: clamp(2.25rem, 5.8vw, 5rem);
+        line-height: 1.05;
+        letter-spacing: -0.04em;
+        margin: 0 0 0.9rem 0;
+        max-width: 1100px;
+      }
+      .story-accent {
+        width: 64px;
+        height: 4px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #2563eb 0%, #38bdf8 100%);
+        margin-bottom: 1.35rem;
+      }
+      @media (max-width: 480px) {
+        h1.story-title {
+          font-size: clamp(26px, 8vw, 38px);
+          line-height: 1.1;
+          max-width: 100%;
+        }
+      }
+    </style>
+    <h1 class="story-title">What is the best gas station to fill up near campus?</h1>
+    <div class="story-accent"></div>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -274,7 +301,7 @@ st.sidebar.caption(
 )
 
 max_age = st.sidebar.slider(
-    "Maximum price age (hours)",
+    "Maximum time since update (hours)",
     min_value=12,
     max_value=72,
     value=48,
@@ -321,7 +348,68 @@ else:
 # 10. DASHBOARD OVERVIEW
 # ============================================================
 
-st.subheader("Overview")
+st.markdown(
+    """
+    <style>
+      .overview-heading {
+        color: #64748b;
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin: 0.45rem 0 1.35rem 0;
+      }
+      .overview-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 1.35rem;
+      }
+      .overview-stat {
+        min-height: 150px;
+        background: #ffffff;
+        border: 1px solid #edf2f7;
+        border-radius: 14px;
+        padding: 1.15rem 1.25rem 1rem 1.25rem;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035);
+      }
+      .overview-value {
+        color: #171717;
+        font-size: clamp(2.75rem, 4vw, 4rem);
+        font-weight: 800;
+        line-height: 0.95;
+        letter-spacing: -0.055em;
+        margin-bottom: 1.05rem;
+        white-space: nowrap;
+      }
+      .overview-label {
+        color: #64748b;
+        font-size: clamp(1.25rem, 1.8vw, 1.5rem);
+        line-height: 1.2;
+      }
+      .overview-callout {
+        border-left: 7px solid #2563eb;
+        background: linear-gradient(90deg, #eff6ff 0%, #ffffff 100%);
+        border-radius: 4px;
+        color: #111827;
+        font-size: clamp(1.25rem, 1.8vw, 1.5rem);
+        line-height: 1.45;
+        padding: 0.95rem 1.25rem;
+        margin: 0 0 1.35rem 0;
+      }
+      .overview-callout strong {
+        font-weight: 800;
+      }
+      @media (max-width: 800px) {
+        .overview-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+    <div class="overview-heading">Overview</div>
+    """,
+    unsafe_allow_html=True,
+)
 
 col1, col2, col3 = st.columns(3)
 
@@ -345,84 +433,254 @@ else:
 
     stations_found = "—"
     eligible_count = "—"
+    lowest_price = None
     cheapest_price = "—"
 
 
-with col1:
+if lowest_price is not None:
+    lowest_display = f"${lowest_price:.2f}"
+else:
+    lowest_display = "—"
 
-    st.metric(
-        label="Stations within radius",
-        value=stations_found,
+st.markdown(
+    '<div class="overview-grid">'
+    f'<div class="overview-stat"><div class="overview-value">{stations_found}</div>'
+    '<div class="overview-label">Stations within radius</div></div>'
+    f'<div class="overview-stat"><div class="overview-value">{eligible_count}</div>'
+    '<div class="overview-label">With an eligible price</div></div>'
+    f'<div class="overview-stat"><div class="overview-value">{lowest_display}</div>'
+    '<div class="overview-label">Lowest gas price</div></div>'
+    "</div>",
+    unsafe_allow_html=True,
+)
+
+if data_loaded and not filtered.empty:
+    best_station = get_best_station(filtered)
+    cheapest_stations = get_cheapest_stations(filtered)
+
+    st.markdown(
+        '<div class="overview-callout">'
+        "<strong>Closest station with the lowest price:</strong> "
+        f"{best_station['Station']} "
+        f"({best_station['Brand']}), "
+        f"${best_station['Regular Price']:.2f}/gal, "
+        f"{best_station['Distance (miles)']:.2f} miles away."
+        "</div>",
+        unsafe_allow_html=True,
     )
 
-with col2:
-
-    st.metric(
-        label="Stations with eligible prices",
-        value=eligible_count,
-    )
-
-with col3:
-
-    st.metric(
-        label="Lowest gas price",
-        value=cheapest_price,
+elif not data_loaded:
+    st.markdown(
+        '<div class="overview-callout">'
+        "<strong>Best station:</strong> "
+        "Load gas station data to see the closest lowest-priced option."
+        "</div>",
+        unsafe_allow_html=True,
     )
 
 
 # ============================================================
-# 11. BEST GAS STATION RECOMMENDATIONS
+# 12. DETOUR VALUE CALCULATOR
 # ============================================================
 
-st.subheader("🏆 Best Gas Station Options")
+st.markdown(
+    """
+    <style>
+      .decision-eyebrow {
+        color: #2563eb;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin: 1.9rem 0 0.35rem 0;
+      }
+      .decision-title {
+        color: #102a43;
+        font-size: clamp(2rem, 3vw, 3rem);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.45rem 0;
+      }
+      .decision-description {
+        color: #64748b;
+        font-size: 1.12rem;
+        line-height: 1.45;
+        max-width: 760px;
+        margin: 0 0 1.1rem 0;
+      }
+      .detour-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+      }
+      .detour-metric {
+        background: #ffffff;
+        border: 1px solid #dbeafe;
+        border-radius: 14px;
+        padding: 1rem 1.15rem;
+      }
+      .detour-metric-label {
+        color: #2563eb;
+        font-size: 0.9rem;
+        font-weight: 800;
+        margin-bottom: 0.35rem;
+      }
+      .detour-metric-value {
+        color: #102a43;
+        font-size: clamp(1.7rem, 2.5vw, 2.4rem);
+        font-weight: 800;
+        line-height: 1.1;
+      }
+      .detour-verdict {
+        border-left: 7px solid #16a34a;
+        background: #f0fdf4;
+        border-radius: 8px;
+        color: #14532d;
+        font-size: 1.15rem;
+        line-height: 1.5;
+        padding: 1rem 1.2rem;
+      }
+      .detour-verdict.not-worth {
+        border-left-color: #ea580c;
+        background: #fff7ed;
+        color: #9a3412;
+      }
+      .detour-footnote {
+        color: #64748b;
+        font-size: 0.92rem;
+        margin-top: 0.65rem;
+      }
+      @media (max-width: 800px) {
+        .detour-metrics {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+    <div class="decision-eyebrow">Make the call</div>
+    <h2 class="decision-title">Is the detour worth it?</h2>
+    <p class="decision-description">
+      Compare fuel savings at the pump with the extra fuel needed to reach
+      the cheapest eligible station.
+    </p>
+    """,
+    unsafe_allow_html=True,
+)
+
+gallons_col, efficiency_col = st.columns(2)
+
+with gallons_col:
+    gallons_per_fill = st.number_input(
+        "Gallons per fill-up",
+        min_value=1.0,
+        max_value=50.0,
+        value=12.0,
+        step=1.0,
+        format="%.0f",
+        key="detour_gallons",
+    )
+
+with efficiency_col:
+    car_efficiency = st.number_input(
+        "Car efficiency (mpg)",
+        min_value=1.0,
+        max_value=100.0,
+        value=25.0,
+        step=1.0,
+        format="%.0f",
+        key="detour_efficiency",
+    )
 
 if not data_loaded:
+    st.info("Load station data to calculate whether a lower price is worth the detour.")
 
-    st.info(
-        "— Gas station recommendations will appear "
-        "after loading data."
-    )
-
-elif not filtered.empty:
-
-    # Find the closest station offering
-    # the lowest eligible price.
-
-    best_station = get_best_station(
-        filtered
-    )
-
-    # Identify any stations tied for the lowest price.
-    cheapest_stations = get_cheapest_stations(
-        filtered
-    )
-
-    st.success(
-        "Closest station offering the lowest price: "
-        f"{best_station['Station']} "
-        f"({best_station['Brand']}) — "
-        f"${best_station['Regular Price']:.2f}/gal, "
-        f"{best_station['Distance (miles)']:.2f} "
-        "miles away."
-    )
-
-    if len(cheapest_stations) > 1:
-
-        st.info(
-            f"{len(cheapest_stations)} stations "
-            "are tied for the lowest gas price."
-        )
+elif filtered.empty:
+    st.info("No stations with eligible prices are available in the selected radius.")
 
 else:
+    best_station = get_best_station(filtered)
+    nearest_station = filtered.sort_values(
+        "Distance (miles)"
+    ).iloc[0]
 
-    st.warning(
-        "No stations with eligible gas prices were "
-        "found within your selected radius."
+    nearest_price = float(nearest_station["Regular Price"])
+    best_price = float(best_station["Regular Price"])
+    nearest_distance = float(nearest_station["Distance (miles)"])
+    best_distance = float(best_station["Distance (miles)"])
+
+    pump_savings = max(
+        0.0,
+        (nearest_price - best_price) * gallons_per_fill,
+    )
+    extra_round_trip_miles = max(
+        0.0,
+        (best_distance - nearest_distance) * 2,
+    )
+    extra_fuel_cost = (
+        extra_round_trip_miles
+        / car_efficiency
+        * best_price
+    )
+    net_savings = pump_savings - extra_fuel_cost
+
+    st.markdown(
+        '<div class="detour-metrics">'
+        '<div class="detour-metric"><div class="detour-metric-label">'
+        "Savings at the pump</div>"
+        f'<div class="detour-metric-value">${pump_savings:.2f}</div></div>'
+        '<div class="detour-metric"><div class="detour-metric-label">'
+        "Extra fuel for the detour</div>"
+        f'<div class="detour-metric-value">${extra_fuel_cost:.2f}</div></div>'
+        '<div class="detour-metric"><div class="detour-metric-label">'
+        "Net savings</div>"
+        f'<div class="detour-metric-value">${net_savings:.2f}</div></div>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    nearest_name = escape(str(nearest_station["Brand"]))
+    best_name = escape(str(best_station["Brand"]))
+
+    if extra_round_trip_miles == 0:
+        verdict = (
+            f"<strong>{best_name}</strong> is the closest eligible "
+            "station with the lowest price, so no detour is needed."
+        )
+        verdict_class = "detour-verdict"
+    elif net_savings >= 0:
+        verdict = (
+            f"Compared with the nearest eligible station, "
+            f"<strong>{nearest_name}</strong> "
+            f"({nearest_distance:.2f} mi, ${nearest_price:.2f}/gal), "
+            f"<strong>{best_name}</strong> saves "
+            f"<strong>${pump_savings:.2f}</strong> on "
+            f"{gallons_per_fill:.0f} gallons. The extra estimated "
+            f"{extra_round_trip_miles:.2f} round-trip miles cost about "
+            f"${extra_fuel_cost:.2f} in fuel, leaving "
+            f"<strong>${net_savings:.2f} net savings</strong>—the "
+            "detour pays off."
+        )
+        verdict_class = "detour-verdict"
+    else:
+        verdict = (
+            f"The lower pump price saves ${pump_savings:.2f}, but the "
+            f"estimated detour fuel costs ${extra_fuel_cost:.2f}. "
+            f"That is about ${abs(net_savings):.2f} more overall, so "
+            "the detour does not pay off for this fill-up."
+        )
+        verdict_class = "detour-verdict not-worth"
+
+    st.markdown(
+        f'<div class="{verdict_class}">{verdict}</div>'
+        '<div class="detour-footnote">Detour distance is estimated as '
+        "twice the difference in straight-line distances; fuel cost uses "
+        "the cheapest station's listed price.</div>",
+        unsafe_allow_html=True,
     )
 
 
 # ============================================================
-# 12. GAS PRICE VISUALIZATIONS
+# 13. GAS PRICE VISUALIZATIONS
 # ============================================================
 
 # All chart creation and formatting now happens
@@ -444,7 +702,40 @@ render_price_charts(
 # 13. INTERACTIVE GAS STATION MAP
 # ============================================================
 
-st.subheader("🗺️ Gas Stations Near Campus")
+st.markdown(
+    """
+    <style>
+      .map-section-eyebrow {
+        color: #2563eb;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin: 1.9rem 0 0.35rem 0;
+      }
+      .map-section-title {
+        color: #102a43;
+        font-size: clamp(2rem, 3vw, 3rem);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.45rem 0;
+      }
+      .map-section-description {
+        color: #64748b;
+        font-size: 1.12rem;
+        line-height: 1.45;
+        max-width: 760px;
+        margin: 0 0 1.1rem 0;
+      }
+    </style>
+    <div class="map-section-eyebrow">Explore the area</div>
+    <h2 class="map-section-title">Gas Stations Near Campus</h2>
+    <p class="map-section-description">
+      Adjust the search radius and compare eligible stations around campus.
+    </p>
+    """,
+    unsafe_allow_html=True,
+)
 
 # The map and smooth radius slider are managed
 # by ui/map.py and the assets/ folder.
@@ -466,15 +757,117 @@ render_map(
 # 14. AVAILABLE GAS STATIONS TABLE
 # ============================================================
 
-st.subheader("Available Gas Stations")
-
-st.dataframe(
-    filtered,
-    use_container_width=True,
-    hide_index=True,
+st.markdown(
+    """
+    <style>
+      .table-section-eyebrow {
+        color: #2563eb;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin: 1.9rem 0 0.35rem 0;
+      }
+      .table-section-title {
+        color: #102a43;
+        font-size: clamp(2rem, 3vw, 3rem);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.45rem 0;
+      }
+      .table-section-description {
+        color: #64748b;
+        font-size: 1.12rem;
+        line-height: 1.45;
+        max-width: 760px;
+        margin: 0 0 1.1rem 0;
+      }
+    </style>
+    <div class="table-section-eyebrow">Review every option</div>
+    <h2 class="table-section-title">Available Gas Stations</h2>
+    <p class="table-section-description">
+      Review station details, regular gas prices and reported freshness
+      within the selected radius.
+    </p>
+    """,
+    unsafe_allow_html=True,
 )
+
+if filtered.empty:
+    if data_loaded:
+        st.info(
+            "No eligible prices match the current radius and update window. "
+            "Try expanding either setting."
+        )
+    else:
+        st.info(
+            "Load gas station data from the sidebar to see station prices here."
+        )
+else:
+
+    def highlight_lowest_price(prices):
+        numeric_prices = pd.to_numeric(prices, errors="coerce")
+        lowest_price = numeric_prices.min()
+
+        return [
+            (
+                "background-color: #dcfce7; color: #166534; font-weight: 800"
+                if pd.notna(price) and price == lowest_price
+                else "color: #1d4ed8; font-weight: 700"
+                if pd.notna(price)
+                else ""
+            )
+            for price in numeric_prices
+        ]
+
+    table_styles = [
+        {
+            "selector": "thead th",
+            "props": [
+                ("background-color", "#2563eb"),
+                ("color", "#ffffff"),
+                ("font-weight", "800"),
+                ("border-bottom", "2px solid #1d4ed8"),
+                ("padding", "0.75rem"),
+            ],
+        },
+        {
+            "selector": "tbody tr:nth-child(even)",
+            "props": [("background-color", "#eff6ff")],
+        },
+        {
+            "selector": "tbody td",
+            "props": [
+                ("padding", "0.65rem 0.75rem"),
+                ("border-bottom", "1px solid #dbeafe"),
+            ],
+        },
+    ]
+
+    styled_table = (
+        filtered.style
+        .set_table_styles(table_styles)
+        .apply(highlight_lowest_price, subset=["Regular Price"])
+    )
+
+    st.container(border=True).dataframe(
+        styled_table,
+        width="stretch",
+        hide_index=True,
+    )
+
+    st.download_button(
+        "Download filtered stations (CSV)",
+        data=filtered.to_csv(index=False).encode("utf-8"),
+        file_name=(
+            f"gsu_gas_stations_{pd.Timestamp.now():%Y-%m-%d}.csv"
+        ),
+        mime="text/csv",
+    )
 
 st.caption(
     "Gas prices may not reflect prices currently "
     "posted at the pump. Verify prices before traveling."
 )
+
+
