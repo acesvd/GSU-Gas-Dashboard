@@ -76,68 +76,11 @@ st.markdown(
         background: linear-gradient(90deg, #2563eb 0%, #38bdf8 100%);
         margin-bottom: 1.35rem;
       }
-      .story-card {
-        background: linear-gradient(135deg, #eff6ff 0%, #ffffff 72%);
-        border: 1px solid #bfdbfe;
-        border-left: 7px solid #2563eb;
-        border-radius: 14px;
-        padding: 1.15rem 1.25rem;
-        margin: 0 0 1.25rem 0;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035);
-      }
-      .story-kicker {
-        color: #1d4ed8;
-        font-size: 1rem;
-        font-weight: 800;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        margin-bottom: 0.35rem;
-      }
-      .story-sentence {
-        color: #1e293b;
-        font-size: clamp(1.35rem, 2vw, 1.65rem);
-        line-height: 1.45;
-        margin: 0;
-      }
-      .story-price {
-        color: #ea580c;
-        font-size: 1.45em;
-        font-weight: 800;
-        white-space: nowrap;
-      }
-      .story-context-card {
-        background: #ffffff;
-        border: 1px solid #dbeafe;
-        border-radius: 14px;
-        min-height: 112px;
-        padding: 1rem 1.05rem;
-        margin-bottom: 1.35rem;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.025);
-      }
-      .story-context-label {
-        color: #2563eb;
-        font-size: 1rem;
-        font-weight: 800;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        margin-bottom: 0.35rem;
-      }
-      .story-context-value {
-        color: #334155;
-        font-size: 1.25rem;
-        line-height: 1.42;
-      }
       @media (max-width: 480px) {
         h1.story-title {
           font-size: clamp(26px, 8vw, 38px);
           line-height: 1.1;
           max-width: 100%;
-        }
-        .story-sentence {
-          font-size: clamp(16px, 5vw, 21px);
-        }
-        .story-context-value {
-          font-size: 1rem;
         }
       }
     </style>
@@ -402,83 +345,7 @@ else:
 
 
 # ============================================================
-# 10. DASHBOARD HEADER
-# ============================================================
-
-if data_loaded and not filtered.empty:
-
-    prices = pd.to_numeric(
-        filtered["Regular Price"],
-        errors="coerce",
-    ).dropna()
-
-    price_spread = (
-        float(prices.max()) - float(prices.min())
-        if not prices.empty
-        else 0.0
-    )
-
-    ten_gallon_difference = price_spread * 10
-
-    st.markdown(
-        '<div class="story-card">'
-        '<div class="story-kicker">The cost of choosing</div>'
-        '<p class="story-sentence">The same gallon costs up to '
-        f'<span class="story-price">${price_spread:.2f}</span> more '
-        "depending on where you stop. "
-        "That can mean "
-        f'<span class="story-price">${ten_gallon_difference:.2f}</span> '
-        "on a 10-gallon fill-up.</p>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-else:
-
-    st.markdown(
-        '<div class="story-card">'
-        '<div class="story-kicker">The cost of choosing</div>'
-        '<p class="story-sentence">The same gallon can cost more '
-        "depending on where you stop. "
-        "Compare the price spread below to see the difference "
-        "on a 10-gallon fill-up.</p>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-question_col, audience_col, scope_col = st.columns(3)
-
-with question_col:
-    st.markdown(
-        '<div class="story-context-card">'
-        '<div class="story-context-label">The question</div>'
-        '<div class="story-context-value">Which nearby station is '
-        "the best value, balancing price, distance and price "
-        "freshness?</div></div>",
-        unsafe_allow_html=True,
-    )
-
-with audience_col:
-    st.markdown(
-        '<div class="story-context-card">'
-        '<div class="story-context-label">The decision</div>'
-        '<div class="story-context-value">Students and staff driving '
-        "to campus who need regular unleaded gas.</div></div>",
-        unsafe_allow_html=True,
-    )
-
-with scope_col:
-    st.markdown(
-        '<div class="story-context-card">'
-        '<div class="story-context-label">The scope</div>'
-        f'<div class="story-context-value">Stations within '
-        f"{radius:.2f} miles, using one Google Maps snapshot.</div></div>",
-        unsafe_allow_html=True,
-    )
-
-
-# ============================================================
-# 11. DASHBOARD OVERVIEW
+# 10. DASHBOARD OVERVIEW
 # ============================================================
 
 st.markdown(
@@ -683,25 +550,6 @@ st.markdown(
         color: #64748b;
         font-size: 0.92rem;
         margin-top: 0.65rem;
-      }
-      .story-list-card {
-        background: #ffffff;
-        border: 1px solid #dbeafe;
-        border-radius: 14px;
-        padding: 1rem 1.2rem;
-        margin: 0.7rem 0;
-        color: #334155;
-        font-size: 1.05rem;
-        line-height: 1.5;
-      }
-      .data-limitations {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        padding: 1rem 1.25rem;
-        color: #475569;
-        font-size: 1rem;
-        line-height: 1.55;
       }
       @media (max-width: 800px) {
         .detour-metrics {
@@ -1023,126 +871,3 @@ st.caption(
 )
 
 
-# ============================================================
-# 16. RECOMMENDATIONS AND DATA LIMITATIONS
-# ============================================================
-
-st.markdown(
-    """
-    <div class="decision-eyebrow">So what?</div>
-    <h2 class="decision-title">Recommendations</h2>
-    """,
-    unsafe_allow_html=True,
-)
-
-if data_loaded and not filtered.empty:
-    best_station = get_best_station(filtered)
-    nearest_station = filtered.sort_values(
-        "Distance (miles)"
-    ).iloc[0]
-
-    best_name = escape(str(best_station["Brand"]))
-    nearest_name = escape(str(nearest_station["Brand"]))
-    best_price = float(best_station["Regular Price"])
-    nearest_price = float(nearest_station["Regular Price"])
-    nearest_distance = float(nearest_station["Distance (miles)"])
-    fill_price_difference = max(
-        0.0,
-        (nearest_price - best_price) * gallons_per_fill,
-    )
-    price_age = pd.to_numeric(
-        pd.Series([best_station["Price Age (hours)"]]),
-        errors="coerce",
-    ).iloc[0]
-
-    if best_price == nearest_price and best_distance == nearest_distance:
-        convenience_recommendation = (
-            "The nearest eligible option is already at the lowest price; "
-            "there is no price premium for choosing it."
-        )
-    else:
-        convenience_recommendation = (
-            f"If you are short on time, <strong>{nearest_name}</strong> "
-            f"is nearest ({nearest_distance:.2f} mi); it costs about "
-            f"<strong>${fill_price_difference:.2f} more</strong> than "
-            f"{best_name} for {gallons_per_fill:.0f} gallons."
-        )
-
-    if pd.notna(price_age):
-        if price_age < 1:
-            reported_time = (
-                f"about {max(1, round(price_age * 60))} minutes ago"
-            )
-        elif price_age < 2:
-            reported_time = "about 1 hour ago"
-        else:
-            reported_time = f"about {price_age:.0f} hours ago"
-
-        freshness_recommendation = (
-            f"The price for <strong>{best_name}</strong> was last reported "
-            f"{reported_time}. Check before leaving; crowdsourced prices "
-            "may differ from the pump."
-        )
-    else:
-        freshness_recommendation = (
-            "Check the price before leaving; crowdsourced reports may "
-            "differ from the pump."
-        )
-
-    recommendation_messages = [
-        (
-            f"For a regular fill-up, <strong>{best_name}</strong> at "
-            f"<strong>${best_price:.2f}/gal</strong> is the cheapest "
-            "eligible option. Use the detour calculator to check whether "
-            "the trip pays off for your car."
-        ),
-        convenience_recommendation,
-        freshness_recommendation,
-        (
-            "Repeat this snapshot over several days to see whether the "
-            "same station stays cheapest."
-        ),
-    ]
-
-    for number, recommendation in enumerate(
-        recommendation_messages,
-        start=1,
-    ):
-        st.markdown(
-            '<div class="story-list-card">'
-            f"<strong>{number}.</strong> {recommendation}</div>",
-            unsafe_allow_html=True,
-        )
-
-else:
-    st.info("Load station data to generate recommendations for the current search.")
-
-st.markdown(
-    """
-    <div class="decision-eyebrow">Read the results in context</div>
-    <h2 class="decision-title">What the data cannot tell us</h2>
-    <div class="data-limitations">
-      <ul>
-        <li><strong>Distances:</strong> These are straight-line estimates
-        from campus, not driving routes, so detour costs are approximate.</li>
-        <li><strong>Coverage:</strong> Google Places returns up to 20 results
-        per search. Overlapping searches improve coverage, but some stations
-        may still be missing. Stations without usable, recent prices are
-        excluded from eligible-price comparisons.</li>
-        <li><strong>One snapshot:</strong> This dataset cannot show how prices
-        change over time or explain why they differ. The relationship between
-        price and distance is an association, not a cause.</li>
-      </ul>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-if search_metadata is not None:
-    capped_searches = int(search_metadata.get("capped_searches", 0))
-    requests_made = int(search_metadata.get("requests_made", 0))
-    if capped_searches > 0:
-        st.caption(
-            f"Coverage note: {capped_searches} of {requests_made} searches "
-            "reached Google's 20-result limit."
-        )
