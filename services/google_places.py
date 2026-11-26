@@ -938,6 +938,23 @@ def fetch_google_stations(
             timeout=30
 
         )
+        
+        if not response.ok:
+
+            try:
+                error_data = response.json().get("error", {})
+
+                logger.error(
+                    "Google Places API error: %s",
+                    error_data
+                )
+
+            except ValueError:
+
+                logger.error(
+                    "Google Places API returned HTTP %s",
+                    response.status_code
+                )
 
         response.raise_for_status()
 
