@@ -132,7 +132,7 @@ available_campuses = [
 
 # Create a single row for the main controls.
 campus_col, refresh_col, api_col = st.columns(
-    [3, 2, 1.4],
+    [3, 2, 1.1],
     vertical_alignment="bottom",
     gap="small"
 )
@@ -218,70 +218,135 @@ with st.sidebar.expander(
 # GAS PRICE REFRESH BUTTON
 # ============================================================
 
+
 # ============================================================
 # API KEY CONFIGURATION
 # ============================================================
 
-use_default_key = st.secrets.get(
+# Determine whether default keys are permitted.
+
+use_default_places_key = st.secrets.get(
     "USE_DEFAULT_PLACES_KEY",
     False
 )
+
+use_default_maps_key = st.secrets.get(
+    "USE_DEFAULT_MAPS_KEY",
+    False
+)
+
+
+# Retrieve default keys only when permitted.
+
+default_places_key = (
+    st.secrets.get("GOOGLE_PLACES_API_KEY", "").strip()
+    if use_default_places_key
+    else ""
+)
+
+default_maps_key = (
+    st.secrets.get("GOOGLE_MAPS_BROWSER_KEY", "").strip()
+    if use_default_maps_key
+    else ""
+)
+
+
+# ------------------------------------------------------------
+# API CONFIGURATION POPOVER
+# ------------------------------------------------------------
 
 with api_col.popover(
     "🔑 API Configuration",
     width="stretch"
 ):
 
-    st.markdown("**Google Places API Key**")
+    # Google Places API
 
-    visitor_api_key = st.text_input(
-        "Enter your API key",
+    visitor_places_key = st.text_input(
+        "Google Places API Key",
         type="password",
         key="visitor_places_api_key",
-        placeholder="Enter your Google Places API key"
+        placeholder="Enter your Places API key"
     ).strip()
 
     st.caption(
-        "Your key is used during your current session "
-        "to retrieve live gas prices. Requests may "
-        "consume your Google Cloud billing allowance."
+        "Required to retrieve gas station "
+        "information and fuel prices."
+    )
+
+    st.divider()
+
+    # Google Maps JavaScript API
+
+    visitor_maps_key = st.text_input(
+        "Google Maps Browser API Key",
+        type="password",
+        key="visitor_maps_api_key",
+        placeholder="Enter your Maps API key"
+    ).strip()
+
+    st.caption(
+        "Required to display the interactive "
+        "Google Map."
+    )
+
+    st.divider()
+
+    # Determine which API keys to use.
+
+    api_key = (
+        visitor_places_key or default_places_key
+    )
+
+    maps_browser_key = (
+        visitor_maps_key or default_maps_key
+    )
+
+    keys_ready = bool(
+        api_key and maps_browser_key
+    )
+
+    # Configuration status
+
+    if keys_ready:
+
+        st.success("Both API keys are configured.")
+
+    elif not api_key and not maps_browser_key:
+
+        st.info("Both API keys are required.")
+
+    elif not api_key:
+
+        st.info("Google Places API key is required.")
+
+    else:
+
+        st.info("Google Maps API key is required.")
+
+    st.caption(
+        "Keys are used during your current session. "
+        "API usage is billed to the associated "
+        "Google Cloud project."
+    )
+
+    st.caption(
+        "Use a dedicated, restricted API key. "
+        "Reload the page before switching Maps keys."
     )
 
     st.markdown(
-        "[How to obtain an API key]"
+        "[Get a Places API key]"
         "(https://developers.google.com/maps/"
         "documentation/places/web-service/get-api-key)"
     )
 
-    if visitor_api_key:
-
-        st.success("API key provided")
-
-    elif use_default_key:
-
-        st.info("Using the configured default API key.")
-
-    else:
-
-        st.info("An API key is required for live gas prices.")
-
-
-# Determine which API key to use.
-
-if visitor_api_key:
-
-    api_key = visitor_api_key
-
-elif use_default_key:
-
-    api_key = st.secrets.get(
-        "GOOGLE_PLACES_API_KEY",
-        ""
+    st.markdown(
+        "[Get a Maps JavaScript API key]"
+        "(https://developers.google.com/maps/"
+        "documentation/javascript/get-api-key)"
     )
 
-else:
-
-    api_key = ""
 
 
 with refresh_col:
@@ -289,14 +354,13 @@ with refresh_col:
     refresh_requested = st.button(
         "Get Latest Gas Prices",
         type="primary",
-        disabled=preview_mode or not api_key,
+        disabled=preview_mode or not keys_ready,
         width="stretch",
         help=(
-            "Retrieve live gas prices using "
-            "the configured API key."
-            if api_key
+            "Retrieve live gas prices."
+            if keys_ready
             else
-            "Enter your API key in API Configuration."
+            "Enter both API keys in API Configuration."
         )
     )
 
@@ -326,7 +390,7 @@ map_area = map_col.container()
 # Adjusting the radius, price age, or other controls
 # does not trigger additional Google Places requests.
 
-if refresh_requested:
+if refresh_requested and keys_ready:
 
     try:
 
@@ -385,6 +449,13 @@ if preview_mode:
         "Design preview — live gas prices are not displayed."
     )
 
+elif not keys_ready:
+
+    status_area.info(
+        "Enter both Google API keys under "
+        "API Configuration to get started."
+    )
+
 elif retrieved_at is not None:
 
     local_time = retrieved_at.tz_convert(
@@ -398,19 +469,10 @@ elif retrieved_at is not None:
 
 else:
 
-    if not api_key:
-
-        status_area.info(
-            "Enter your Google Places API key under "
-            "API Configuration to explore nearby gas stations."
-        )
-
-    else:
-
-        status_area.info(
-            f"Click Get Latest Gas Prices to explore "
-            f"stations near {selected_campus} Campus."
-        )
+    status_area.info(
+        f"Click Get Latest Gas Prices to explore "
+        f"stations near {selected_campus} Campus."
+    )
 
 
 # ============================================================
@@ -739,17 +801,66 @@ st.caption(
 # Moving the slider locally filters the station
 # data without requesting new Google Places data.
 
+
 with map_area:
 
-    render_map(
-        df=df,
-        radius=radius,
-        max_age=max_age,
-        data_loaded=data_loaded,
-        campus_lat=CAMPUS_LAT,
-        campus_lon=CAMPUS_LON,
-        campus_name=selected_campus,
-    )
+    if keys_ready:
+
+        render_map(
+            df=df,
+            radius=radius,
+            max_age=max_age,
+            data_loaded=data_loaded,
+            campus_lat=CAMPUS_LAT,
+            campus_lon=CAMPUS_LON,
+            campus_name=selected_campus,
+            maps_browser_key=maps_browser_key
+        )
+
+    else:
+
+        st.html("""
+            <div style="
+                min-height: 400px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 24px;
+                color: #64748b;
+                box-sizing: border-box;
+            ">
+
+                <div style="font-size: 38px;">
+                    🗺️
+                </div>
+
+                <div style="
+                    font-size: 19px;
+                    font-weight: 700;
+                    color: #102a43;
+                    margin: 12px 0 8px;
+                ">
+                    Interactive Gas Station Map
+                </div>
+
+                <div style="
+                    font-size: 14px;
+                    max-width: 320px;
+                    line-height: 1.5;
+                ">
+                    Enter both Google API keys under
+                    API Configuration to enable the
+                    interactive map.
+                </div>
+
+            </div>
+        """)
+
 
 
 # ============================================================

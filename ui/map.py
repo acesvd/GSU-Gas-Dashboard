@@ -332,7 +332,8 @@ def render_map(
     data_loaded,
     campus_lat,
     campus_lon,
-    campus_name
+    campus_name,
+    maps_browser_key
 ):
     """
     Render the interactive Google Map.
@@ -381,20 +382,6 @@ def render_map(
         # Show the map and radius circle, but no
         # station markers or retrieved gas prices.
         map_stations = []
-
-
-    # ----------------------------------------------
-    # READ BROWSER API KEY
-    # ----------------------------------------------
-
-    # This must be the browser-restricted Maps
-    # JavaScript API key.
-    #
-    # Do not use GOOGLE_PLACES_API_KEY here.
-
-    maps_browser_key = st.secrets[
-        "GOOGLE_MAPS_BROWSER_KEY"
-    ]
 
 
     # ----------------------------------------------
