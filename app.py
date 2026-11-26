@@ -131,9 +131,10 @@ available_campuses = [
 ]
 
 # Create a single row for the main controls.
-campus_col, refresh_col = st.columns(
-    [3, 2],
+campus_col, refresh_col, api_col = st.columns(
+    [3, 2, 1.4],
     vertical_alignment="bottom",
+    gap="small"
 )
 
 with campus_col:
@@ -226,7 +227,10 @@ use_default_key = st.secrets.get(
     False
 )
 
-with st.popover("🔑 API Configuration"):
+with api_col.popover(
+    "🔑 API Configuration",
+    width="stretch"
+):
 
     st.markdown("**Google Places API Key**")
 
