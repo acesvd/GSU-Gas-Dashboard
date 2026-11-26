@@ -96,12 +96,6 @@ export default function (component) {
     const radiusLabel =
         parentElement.querySelector("#gsu-radius-value");
 
-    const countLabel =
-        parentElement.querySelector("#gsu-visible-count");
-
-    const bestLabel =
-        parentElement.querySelector("#gsu-best-station");
-
 
     // ==================================================
     // 4. RADIUS HELPERS
@@ -184,30 +178,50 @@ export default function (component) {
         // IDENTIFY AND RANK ELIGIBLE STATIONS
         // ----------------------------------------------
 
-        const eligibleStations = visibleStations
-            .filter(item =>
+        const PRICE_TOLERANCE = 0.000001;
+
+        const eligibleStations = visibleStations.filter(
+            item =>
                 item.station.eligible &&
-                Number.isFinite(item.station.price)
+                Number.isFinite(item.station.price) &&
+                item.station.price > 0
+        );
+
+
+        // Identify the minimum eligible price.
+        const lowestPrice = eligibleStations.length > 0
+
+            ? Math.min(
+                ...eligibleStations.map(
+                    item => item.station.price
+                )
             )
+
+            : null;
+
+
+        // Identify all stations tied for the minimum.
+        const cheapestStations = eligibleStations
+
+            .filter(item =>
+                lowestPrice !== null &&
+                Math.abs(
+                    item.station.price - lowestPrice
+                ) <= PRICE_TOLERANCE
+            )
+
             .sort((a, b) => {
 
-                // Priority 1: Lowest price.
-                const priceDifference =
-                    a.station.price - b.station.price;
-
-                if (priceDifference !== 0) {
-                    return priceDifference;
-                }
-
-                // Priority 2: Shortest distance.
+                // Prefer the closest station.
                 const distanceDifference =
-                    a.station.distance - b.station.distance;
+                    a.station.distance -
+                    b.station.distance;
 
                 if (distanceDifference !== 0) {
                     return distanceDifference;
                 }
 
-                // Priority 3: Deterministic Place ID tie-breaker.
+                // Deterministic Place ID tie-breaker.
                 return a.station.id < b.station.id
                     ? -1
                     : a.station.id > b.station.id
@@ -217,12 +231,9 @@ export default function (component) {
             });
 
 
-        const bestStation = eligibleStations.length > 0
-            ? eligibleStations[0].station
-            : null;
-
-        const lowestPrice = bestStation
-            ? bestStation.price
+        // Select one Best Value station.
+        const bestStation = cheapestStations.length > 0
+            ? cheapestStations[0].station
             : null;
 
 
@@ -252,7 +263,7 @@ export default function (component) {
                 Number.isFinite(station.price) &&
                 Math.abs(
                     station.price - lowestPrice
-                ) < 0.000001
+                ) < PRICE_TOLERANCE
             );
 
             const isBest = (
@@ -323,40 +334,6 @@ export default function (component) {
 
         }
 
-
-        // ----------------------------------------------
-        // UPDATE MAP SUMMARY
-        // ----------------------------------------------
-
-        if (!state.latestData.hasData) {
-
-            countLabel.textContent = "—";
-
-            bestLabel.textContent = "—";
-
-            return;
-
-        }
-
-        countLabel.textContent =
-            visibleStations.length.toString();
-
-
-        if (bestStation) {
-
-            bestLabel.textContent =
-                bestStation.name +
-                " — $" +
-                bestStation.price.toFixed(2) +
-                "/gal";
-
-        } else {
-
-            bestLabel.textContent =
-                "No eligible prices within radius";
-
-        }
-
     }
 
 
@@ -364,87 +341,218 @@ export default function (component) {
     // 6. CREATE SAFE STATION POPUP CONTENT
     // ==================================================
 
+    
     function createStationPopup(station) {
 
         const container = document.createElement("div");
 
-        container.style.fontFamily =
-            "Arial, sans-serif";
-
-        container.style.minWidth = "180px";
+        container.className = "gsu-popup";
 
 
         // ----------------------------------------------
-        // STATION NAME
+        // HELPER: CREATE POPUP ICONS
         // ----------------------------------------------
 
-        const heading = document.createElement("strong");
+        function createIcon(type) {
 
-        heading.textContent = station.name;
+            const icon = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "svg"
+            );
 
-        container.appendChild(heading);
+            icon.setAttribute("viewBox", "0 0 24 24");
+            icon.setAttribute("fill", "none");
+            icon.setAttribute("stroke", "currentColor");
+            icon.setAttribute("stroke-width", "1.8");
+            icon.setAttribute("stroke-linecap", "round");
+            icon.setAttribute("stroke-linejoin", "round");
+            icon.setAttribute("aria-hidden", "true");
+
+            icon.classList.add("gsu-popup-icon");
+
+            const paths = {
+
+                location: `
+                    <path d="M20 10c0 5-8 11-8 11
+                             S4 15 4 10a8 8 0 1 1 16 0Z"/>
+                    <circle cx="12" cy="10" r="2.5"/>
+                `,
+
+                navigation: `
+                    <path d="M3 11 21 3 13 21
+                             10 14 3 11Z"/>
+                `,
+
+                clock: `
+                    <circle cx="12" cy="12" r="9"/>
+                    <path d="M12 7v5l-3 2"/>
+                `
+
+            };
+
+            icon.innerHTML = paths[type] || "";
+
+            return icon;
+
+        }
+
+
+        // ----------------------------------------------
+        // HELPER: CREATE AN ICON AND TEXT ROW
+        // ----------------------------------------------
+
+        function createDetailRow(type, text, className) {
+
+            const row = document.createElement("div");
+
+            row.className =
+                "gsu-popup-row " + className;
+
+            const label = document.createElement("span");
+
+            label.textContent = text;
+
+            row.appendChild(createIcon(type));
+
+            row.appendChild(label);
+
+            return row;
+
+        }
+
+
+        // ----------------------------------------------
+        // STATION ADDRESS
+        // ----------------------------------------------
+
+        const address = (
+            station.address || "Address unavailable"
+        ).replace(/,\s*USA\s*$/i, "");
+
+        container.appendChild(
+            createDetailRow(
+                "location",
+                address,
+                "gsu-popup-address"
+            )
+        );
+
+
+        // ----------------------------------------------
+        // DIVIDER
+        // ----------------------------------------------
+
+        const divider = document.createElement("hr");
+
+        divider.className = "gsu-popup-divider";
+
+        container.appendChild(divider);
 
 
         // ----------------------------------------------
         // REGULAR GAS PRICE
         // ----------------------------------------------
 
-        const priceLine = document.createElement("p");
+        const priceLine = document.createElement("div");
 
-        let priceText = "Price unavailable";
+        priceLine.className = "gsu-popup-price-line";
 
-        if (Number.isFinite(station.price)) {
+        const priceValue = document.createElement("span");
 
-            priceText =
-                "$" +
-                station.price.toFixed(2) +
-                " per gallon";
+        priceValue.className = "gsu-popup-price";
 
-            if (!station.eligible) {
+        if (
+            Number.isFinite(station.price) &&
+            station.price > 0
+        ) {
 
-                priceText +=
-                    " (outside freshness limit)";
+            priceValue.textContent =
+                "$" + station.price.toFixed(2);
 
-            }
+            const priceUnit = document.createElement("span");
+
+            priceUnit.className = "gsu-popup-unit";
+
+            priceUnit.textContent = "per gallon";
+
+            priceLine.appendChild(priceValue);
+
+            priceLine.appendChild(priceUnit);
+
+        } else {
+
+            priceValue.textContent = "Price unavailable";
+
+            priceValue.classList.add(
+                "gsu-popup-price-unavailable"
+            );
+
+            priceLine.appendChild(priceValue);
 
         }
-
-        priceLine.textContent = priceText;
 
         container.appendChild(priceLine);
 
 
         // ----------------------------------------------
-        // DISTANCE
+        // PRICE ELIGIBILITY WARNING
         // ----------------------------------------------
 
-        const distanceLine =
-            document.createElement("p");
+        if (
+            Number.isFinite(station.price) &&
+            station.price > 0 &&
+            !station.eligible
+        ) {
 
-        distanceLine.textContent =
-            station.distance.toFixed(2) +
-            " miles from campus";
+            const warning = document.createElement("div");
 
-        container.appendChild(distanceLine);
+            warning.className = "gsu-popup-warning";
+
+            warning.textContent =
+                "Price does not meet freshness requirements.";
+
+            container.appendChild(warning);
+
+        }
+
+
+        // ----------------------------------------------
+        // DISTANCE FROM CAMPUS
+        // ----------------------------------------------
+
+        container.appendChild(
+            createDetailRow(
+
+                "navigation",
+
+                station.distance.toFixed(2) +
+                " miles from campus",
+
+                "gsu-popup-distance"
+
+            )
+        );
 
 
         // ----------------------------------------------
         // PRICE AGE
         // ----------------------------------------------
 
-        if (Number.isFinite(station.age)) {
+        const ageText = Number.isFinite(station.age)
 
-            const ageLine =
-                document.createElement("small");
+            ? "Price age: " +
+              station.age.toFixed(1) +
+              " hours"
 
-            ageLine.textContent =
-                "Price age: " +
-                station.age.toFixed(1) +
-                " hours";
+            : "Price update time unavailable";
 
-            container.appendChild(ageLine);
-
-        }
+        container.appendChild(
+            createDetailRow(
+                "clock",
+                ageText,
+                "gsu-popup-age"
+            )
+        );
 
 
         return container;
@@ -548,13 +656,24 @@ export default function (component) {
 
                         }
 
-                        const popup =
-                            createStationPopup(station);
+                        const popup = createStationPopup(station);
 
-                        state.infoWindow.setContent(
-                            popup
-                        );
 
+                        // Create the station name in the popup header.
+                        const heading = document.createElement("div");
+
+                        heading.className = "gsu-popup-heading";
+
+                        heading.textContent = station.name;
+
+                        state.infoWindow.setHeaderContent(heading);
+
+
+                        // Set the popup body.
+                        state.infoWindow.setContent(popup);
+
+
+                        // Open the popup.
                         state.infoWindow.open({
 
                             map: state.map,
@@ -879,7 +998,9 @@ export default function (component) {
             // ------------------------------------------
 
             state.infoWindow =
-                new InfoWindow();
+                new InfoWindow({
+                    maxWidth: 320
+                });
 
 
             // ------------------------------------------

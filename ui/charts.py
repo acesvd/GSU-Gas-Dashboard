@@ -4,7 +4,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from processing.filtering import summarize_brand_prices
+from processing.filtering import (
+    summarize_brand_prices,
+    get_best_station,
+    get_cheapest_stations,
+)
 
 
 # ============================================================
@@ -86,130 +90,165 @@ def empty_chart(height=350):
 
 
 # ============================================================
-# 3. PRICE PER GALLON BY STATION
+# 3. PRICE DISTRIBUTION
 # ============================================================
 
-def create_station_price_chart(eligible_df):
-    """
-    Create a horizontal bar chart comparing gas
-    prices at individual stations.
 
-    Each row gets a unique category label so that
-    multiple stations with the same brand name
-    DO NOT get stacked together.
+def create_price_distribution_chart(eligible_df):
+    """
+    Display the frequency of regular gas prices
+    across eligible gas stations.
     """
 
     if eligible_df is None or eligible_df.empty:
         return empty_chart()
 
+    # ----------------------------------------------
+    # GROUP STATIONS BY PRICE
+    # ----------------------------------------------
+
     chart_df = (
-        eligible_df
-        .sort_values(
-            by=[
-                "Regular Price",
-                "Distance (miles)",
-            ],
-            ascending=[
-                True,
-                True,
-            ],
-        )
-        .copy()
-        .reset_index(drop=True)
+        eligible_df["Regular Price"]
+        .round(2)
+        .value_counts()
+        .sort_index()
+        .rename_axis("Regular Price")
+        .reset_index(name="Station Count")
     )
 
-    # --------------------------------------------------------
-    # Create a unique display label for every station.
-    #
-    # Example:
-    # Chevron — 0.86 mi (#1)
-    # Chevron — 1.72 mi (#2)
-    #
-    # The numbered suffix guarantees that labels remain
-    # unique, even if brand and distance are identical.
-    # --------------------------------------------------------
+    lowest_price = chart_df["Regular Price"].min()
 
-    chart_df["_station_label"] = [
-        (
-            f"{row['Station']} — "
-            f"{row['Distance (miles)']:.2f} mi "
-            f"(#{index + 1})"
-        )
-        for index, row in chart_df.iterrows()
+    # Create readable categorical price labels.
+    chart_df["Price Label"] = chart_df[
+        "Regular Price"
+    ].map(lambda price: f"${price:.2f}")
+
+    # Highlight the lowest price category.
+    colors = [
+        "#0d9488" if price == lowest_price
+        else "#2563eb"
+        for price in chart_df["Regular Price"]
     ]
 
-    # Preserve the intended price ranking.
-    station_order = chart_df["_station_label"].tolist()
-
-    # Allow enough height to show each station separately.
-    chart_height = max(
-        400,
-        150 + 38 * len(chart_df),
-    )
+    # ----------------------------------------------
+    # CREATE BAR CHART
+    # ----------------------------------------------
 
     fig = px.bar(
         chart_df,
 
-        x="Regular Price",
-        y="_station_label",
+        x="Price Label",
+        y="Station Count",
 
-        color="Brand",
-        color_discrete_map=BRAND_COLORS,
-
-        orientation="h",
-        barmode="group",
-
-        hover_name="Station",
-
-        hover_data={
-            "_station_label": False,
-            "Address": True,
-            "Distance (miles)": ":.2f",
-            "Price Age (hours)": ":.1f",
-            "Place ID": False,
-        },
+        text="Station Count",
 
         labels={
-            "Regular Price": "Regular Gas Price ($/gal)",
-            "_station_label": "Gas Station",
+            "Price Label": "Regular Gas Price ($/gal)",
+            "Station Count": "Number of Stations",
         },
 
         template=CHART_TEMPLATE,
-        height=chart_height,
+        height=400,
     )
 
-    # Display the cheapest station at the top.
-    fig.update_yaxes(
-        categoryorder="array",
-        categoryarray=station_order[::-1],
-    )
+    # ----------------------------------------------
+    # FORMAT BARS AND COUNT LABELS
+    # ----------------------------------------------
 
-    # Add an individual price label to each bar.
     fig.update_traces(
-        texttemplate="$%{x:.2f}",
+        marker_color=colors,
+
         textposition="outside",
+
+        textfont=dict(
+            size=15,
+            color="#334155",
+        ),
+
+        constraintext="none",
+
         cliponaxis=False,
+
+        hovertemplate=(
+            "Price: %{x}/gal<br>"
+            "Stations: %{y}"
+            "<extra></extra>"
+        ),
     )
 
-    # Leave room for the labels at the end of each bar.
-    max_price = chart_df["Regular Price"].max()
+    # ----------------------------------------------
+    # FORMAT X-AXIS
+    # ----------------------------------------------
 
     fig.update_xaxes(
-        range=[
-            0,
-            max_price * 1.20,
-        ],
-        tickprefix="$",
-        tickformat=".2f",
+        type="category",
+
+        categoryorder="array",
+
+        categoryarray=chart_df["Price Label"].tolist(),
+
+        tickfont=dict(
+            size=12,
+            color="#475569",
+        ),
+
+        title_font=dict(
+            size=14,
+            color="#334155",
+        ),
+
+        tickangle=0 if len(chart_df) <= 10 else -45,
+
+        automargin=True,
     )
 
+    # ----------------------------------------------
+    # FORMAT Y-AXIS
+    # ----------------------------------------------
+
+    fig.update_yaxes(
+        rangemode="tozero",
+
+        range=[
+            0,
+            chart_df["Station Count"].max() * 1.15
+        ],
+
+        tickformat="d",
+
+        dtick=1 if chart_df["Station Count"].max() <= 10
+        else None,
+
+        tickfont=dict(
+            size=12,
+            color="#475569",
+        ),
+
+        title_font=dict(
+            size=14,
+            color="#334155",
+        ),
+
+        gridcolor="#e2e8f0",
+    )
+
+    # ----------------------------------------------
+    # OVERALL CHART APPEARANCE
+    # ----------------------------------------------
+
     fig.update_layout(
-        legend_title_text="Brand",
-        bargap=0.20,
+        showlegend=False,
+
+        bargap=0.25,
+
+        uniformtext=dict(
+            minsize=13,
+            mode="show",
+        ),
 
         margin=dict(
             l=30,
-            r=60,
+            r=20,
             t=20,
             b=50,
         ),
@@ -222,70 +261,333 @@ def create_station_price_chart(eligible_df):
 # 4. GAS PRICE VS. DISTANCE
 # ============================================================
 
+
 def create_price_distance_chart(eligible_df):
     """
-    Create a scatter plot comparing station distance
-    with regular gas price.
+    Compare regular gas prices and distance from
+    campus using consistent recommendation colors.
 
-    Each dot represents one individual station.
+    Each point represents one eligible gas station.
     """
 
     if eligible_df is None or eligible_df.empty:
-        return empty_chart()
+        return empty_chart(height=400)
 
     chart_df = eligible_df.copy()
 
-    fig = px.scatter(
-        chart_df,
+    # ----------------------------------------------
+    # IDENTIFY RECOMMENDATION CATEGORIES
+    # ----------------------------------------------
 
-        x="Distance (miles)",
-        y="Regular Price",
+    best_station = get_best_station(chart_df)
 
-        color="Brand",
-        color_discrete_map=BRAND_COLORS,
-
-        hover_name="Station",
-
-        hover_data={
-            "Address": True,
-            "Price Age (hours)": ":.1f",
-            "Place ID": False,
-        },
-
-        labels={
-            "Distance (miles)": "Distance from Campus (miles)",
-            "Regular Price": "Regular Gas Price ($/gal)",
-        },
-
-        template=CHART_TEMPLATE,
-        height=400,
+    cheapest_stations = get_cheapest_stations(
+        chart_df
     )
 
-    fig.update_traces(
-        marker=dict(
-            size=11,
-            opacity=0.85,
-            line=dict(
-                width=1,
-                color="white",
-            ),
+    best_id = best_station["Place ID"]
+
+    cheapest_ids = set(
+        cheapest_stations["Place ID"]
+    )
+
+    # Assign the default category.
+    chart_df["Recommendation"] = (
+        "Other eligible stations"
+    )
+
+    # Identify all lowest-price stations.
+    chart_df.loc[
+        chart_df["Place ID"].isin(cheapest_ids),
+        "Recommendation"
+    ] = "Other lowest-price options"
+
+    # Identify the single Best Value station.
+    chart_df.loc[
+        chart_df["Place ID"] == best_id,
+        "Recommendation"
+    ] = "Best Value"
+
+    # ----------------------------------------------
+    # CONFIGURE MARKER APPEARANCE
+    # ----------------------------------------------
+
+    marker_styles = {
+
+        "Other eligible stations": {
+            "color": "#2563eb",
+            "size": 10,
+            "symbol": "circle",
+            "opacity": 0.65,
+        },
+
+        "Other lowest-price options": {
+            "color": "#0d9488",
+            "size": 12,
+            "symbol": "circle",
+            "opacity": 0.95,
+        },
+
+        "Best Value": {
+            "color": "#16a34a",
+            "size": 23,
+            "symbol": "star",
+            "opacity": 1.0,
+        },
+
+    }
+
+    # ----------------------------------------------
+    # CREATE SCATTERPLOT
+    # ----------------------------------------------
+
+    fig = go.Figure()
+
+    # Plot Best Value last so that its marker
+    # appears above the other station markers.
+
+    for category, style in marker_styles.items():
+
+        subset = chart_df.loc[
+            chart_df["Recommendation"] == category
+        ]
+
+        if subset.empty:
+            continue
+
+        fig.add_trace(
+
+            go.Scatter(
+
+                x=subset["Distance (miles)"],
+
+                y=subset["Regular Price"],
+
+                mode="markers",
+
+                name=category,
+
+                marker=dict(
+                    **style,
+                    line=dict(
+                        color="white",
+                        width=1,
+                    ),
+                ),
+
+                customdata=subset[
+                    [
+                        "Station",
+                        "Address",
+                        "Price Age (hours)",
+                    ]
+                ].to_numpy(),
+
+                hovertemplate=(
+                    "<b>%{customdata[0]}</b><br>"
+                    "Price: $%{y:.2f}/gal<br>"
+                    "Distance: %{x:.2f} mi<br>"
+                    "Updated: %{customdata[2]:.1f} "
+                    "hours ago<br>"
+                    "%{customdata[1]}"
+                    "<extra>%{fullData.name}</extra>"
+                ),
+
+            )
         )
+
+    # ----------------------------------------------
+    # ADD MINIMUM PRICE REFERENCE LINE
+    # ----------------------------------------------
+
+    lowest_price = chart_df["Regular Price"].min()
+
+    fig.add_hline(
+        y=lowest_price,
+        line_color="#0d9488",
+        line_width=1.5,
+        line_dash="dot",
+        opacity=0.6,
+        layer="below",
     )
+
+    # ----------------------------------------------
+    # ANNOTATE BEST VALUE STATION
+    # ----------------------------------------------
+
+    best_price = float(
+        best_station["Regular Price"]
+    )
+
+    best_distance = float(
+        best_station["Distance (miles)"]
+    )
+
+    fig.add_annotation(
+
+        x=best_distance,
+        y=best_price,
+
+        text=(
+            "<b>Best Value</b><br>"
+            f"${best_price:.2f}/gal<br>"
+            f"{best_distance:.2f} mi"
+        ),
+
+        showarrow=True,
+
+        arrowhead=0,
+        arrowwidth=1.5,
+        arrowcolor="#16a34a",
+
+        ax=0,
+        ay=-65,
+
+        bgcolor="#f0fdf4",
+        bordercolor="#86efac",
+        borderwidth=1,
+        borderpad=6,
+
+        font=dict(
+            size=12,
+            color="#166534",
+        ),
+
+        align="center",
+
+    )
+
+    # ----------------------------------------------
+    # FORMAT AXIS RANGES
+    # ----------------------------------------------
+
+    highest_price = chart_df[
+        "Regular Price"
+    ].max()
+
+    price_range = highest_price - lowest_price
+
+    # Maintain readable axis ranges even when
+    # every station charges exactly the same price.
+
+    lower_padding = max(
+        price_range * 0.10,
+        0.03,
+    )
+
+    upper_padding = max(
+        price_range * 0.15,
+        0.08,
+    )
+
+    max_distance = chart_df[
+        "Distance (miles)"
+    ].max()
+
+    # ----------------------------------------------
+    # FORMAT X-AXIS
+    # ----------------------------------------------
+
+    fig.update_xaxes(
+
+        title_text="Distance from Campus (miles)",
+
+        range=[
+            0,
+            max_distance + 0.15,
+        ],
+
+        tickformat=".1f",
+
+        tickfont=dict(
+            size=12,
+            color="#475569",
+        ),
+
+        title_font=dict(
+            size=14,
+            color="#334155",
+        ),
+
+        gridcolor="#e2e8f0",
+
+        automargin=True,
+
+    )
+
+    # ----------------------------------------------
+    # FORMAT Y-AXIS
+    # ----------------------------------------------
 
     fig.update_yaxes(
+
+        title_text="Regular Gas Price ($/gal)",
+
+        range=[
+            lowest_price - lower_padding,
+            highest_price + upper_padding,
+        ],
+
         tickprefix="$",
         tickformat=".2f",
+
+        tickfont=dict(
+            size=12,
+            color="#475569",
+        ),
+
+        title_font=dict(
+            size=14,
+            color="#334155",
+        ),
+
+        gridcolor="#e2e8f0",
+
+        automargin=True,
+
     )
 
+    # ----------------------------------------------
+    # OVERALL CHART APPEARANCE
+    # ----------------------------------------------
+
     fig.update_layout(
-        legend_title_text="Brand",
+
+        template=CHART_TEMPLATE,
+
+        height=400,
+
+        legend=dict(
+
+            title_text="",
+
+            orientation="h",
+
+            traceorder="reversed",
+
+            x=0,
+            xanchor="left",
+
+            y=-0.25,
+            yanchor="top",
+
+            font=dict(size=11),
+
+        ),
+
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=13,
+            font_color="#334155",
+        ),
 
         margin=dict(
-            l=40,
+            l=35,
             r=20,
-            t=20,
-            b=50,
+            t=25,
+            b=90,
         ),
+
     )
 
     return fig
@@ -447,27 +749,54 @@ def render_price_charts(eligible_df):
     with chart_col1:
 
         with st.container(border=True):
-            st.markdown(
-                '<div class="chart-card-label">Price at each station</div>',
-                unsafe_allow_html=True,
+
+            st.html(
+                '<div class="chart-card-label">'
+                'Distribution of Gas Prices'
+                '</div>'
             )
 
-            fig_station = create_station_price_chart(
+            fig_distribution = create_price_distribution_chart(
                 eligible_df
             )
 
             st.plotly_chart(
-                fig_station,
-                width='stretch',
-                key="station-price-chart",
+                fig_distribution,
+                width="stretch",
+                key="price-distribution-chart",
             )
+            
+            if eligible_df is not None and not eligible_df.empty:
+
+                displayed_prices = eligible_df["Regular Price"].round(2)
+
+                lowest_price = displayed_prices.min()
+
+                lowest_count = int(
+                    displayed_prices.eq(lowest_price).sum()
+                )
+
+                total_count = len(eligible_df)
+
+                lowest_percentage = (
+                    lowest_count / total_count
+                ) * 100
+
+                st.markdown(
+                    f"**{lowest_count} of {total_count} eligible stations "
+                    f"({lowest_percentage:.0f}%)** offer the lowest "
+                    f"displayed price of **${lowest_price:.2f}/gal**."
+                )
+
 
     with chart_col2:
 
         with st.container(border=True):
-            st.markdown(
-                '<div class="chart-card-label">Price vs. distance</div>',
-                unsafe_allow_html=True,
+
+            st.html(
+                '<div class="chart-card-label">'
+                'Price vs. Distance'
+                '</div>'
             )
 
             fig_distance = create_price_distance_chart(
@@ -476,9 +805,75 @@ def render_price_charts(eligible_df):
 
             st.plotly_chart(
                 fig_distance,
-                width='stretch',
+                width="stretch",
                 key="price-distance-chart",
             )
+
+            # ------------------------------------------
+            # DYNAMIC ANALYTICAL TAKEAWAY
+            # ------------------------------------------
+
+            if eligible_df is not None and not eligible_df.empty:
+
+                best_station = get_best_station(
+                    eligible_df
+                )
+
+                nearest_station = eligible_df.sort_values(
+                    [
+                        "Distance (miles)",
+                        "Regular Price",
+                        "Place ID",
+                    ]
+                ).iloc[0]
+
+                price_difference = (
+
+                    nearest_station["Regular Price"]
+                    - best_station["Regular Price"]
+
+                )
+
+                distance_difference = (
+
+                    best_station["Distance (miles)"]
+                    - nearest_station["Distance (miles)"]
+
+                )
+
+                best_name = best_station["Station"]
+
+                if (
+                    best_station["Place ID"]
+                    == nearest_station["Place ID"]
+                ):
+
+                    st.markdown(
+                        f"**{best_name}** offers the lowest "
+                        "eligible price and is also the "
+                        "closest eligible station."
+                    )
+
+                elif price_difference > 0.000001:
+
+                    st.markdown(
+                        f"Traveling approximately "
+                        f"**{distance_difference:.2f} miles "
+                        f"farther** to {best_name} offers "
+                        f"a price reduction of "
+                        f"**${price_difference:.2f}/gal** "
+                        "compared with the closest eligible "
+                        "station."
+                    )
+
+                else:
+
+                    st.markdown(
+                        "The closest eligible station "
+                        "already offers a price equivalent "
+                        "to the lowest eligible price."
+                    )
+
 
     # --------------------------------------------------------
     # Brand-level comparison

@@ -51,12 +51,78 @@ from ui.charts import render_price_charts
 # ============================================================
 
 st.set_page_config(
-    page_title="What is the best gas station to fill up near campus?",
+    page_title="GSU Gas Price Dashboard",
     page_icon="⛽",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
-# Available campuses
+# ============================================================
+# 2. DASHBOARD HEADER
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+      .dashboard-title {
+        color: #102a43;
+        font-size: clamp(2.2rem, 4vw, 3.5rem);
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -0.04em;
+        margin: 0 0 0.65rem 0;
+      }
+
+      .story-accent {
+        width: 64px;
+        height: 4px;
+        border-radius: 999px;
+        background: #2563eb;
+        margin-bottom: 1.25rem;
+      }
+
+      .dashboard-question {
+        color: #102a43;
+        font-size: clamp(1.5rem, 2.5vw, 2.2rem);
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: -0.025em;
+        margin: 0 0 0.5rem 0;
+      }
+
+      .dashboard-description {
+        color: #64748b;
+        font-size: 1.1rem;
+        line-height: 1.5;
+        margin-bottom: 1rem;
+      }
+    </style>
+
+    <h1 class="dashboard-title">
+        GSU Gas Price Dashboard
+    </h1>
+
+    <div class="story-accent"></div>
+
+    <h2 class="dashboard-question">
+        What are the best gas stations to fill up
+        near campus?
+    </h2>
+
+    <p class="dashboard-description">
+        Find and compare nearby gas stations based
+        on regular gas prices and distance from
+        your campus.
+    </p>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# 3. PRIMARY DASHBOARD CONTROLS
+# ============================================================
+
 available_campuses = [
     name
     for name, location in CAMPUSES.items()
@@ -64,42 +130,64 @@ available_campuses = [
     and location["lon"] is not None
 ]
 
-# Campus selection
-st.sidebar.header("Campus Selection")
-
-selected_campus = st.sidebar.selectbox(
-    "Select Campus",
-    options=available_campuses,
-    index=available_campuses.index(DEFAULT_CAMPUS),
-    key="selected_campus",
+# Create a single row for the main controls.
+campus_col, refresh_col = st.columns(
+    [3, 2],
+    vertical_alignment="bottom",
 )
 
-# Selected campus coordinates
+with campus_col:
+
+    selected_campus = st.selectbox(
+        "Select your campus",
+        options=available_campuses,
+        index=available_campuses.index(DEFAULT_CAMPUS),
+        key="selected_campus",
+    )
+
+
+# Selected campus coordinates.
 CAMPUS_LAT = CAMPUSES[selected_campus]["lat"]
 CAMPUS_LON = CAMPUSES[selected_campus]["lon"]
 
-# # Select the campus-specific search configuration
-# selected_search_profile = CAMPUS_SEARCH_PROFILES.get(
-#     selected_campus,
-#     DEFAULT_SEARCH_PROFILE
-# )
+
+# Initialize campus-specific session storage.
+if "campus_data" not in st.session_state:
+
+    st.session_state["campus_data"] = {}
+
+
+# ============================================================
+# DEVELOPER SETTINGS
+# ============================================================
+
+st.sidebar.header("Dashboard Debug")
+
+st.sidebar.caption(
+    "Technical diagnostics and development controls."
+)
 
 default_search_profile = CAMPUS_SEARCH_PROFILES.get(
     selected_campus,
-    DEFAULT_SEARCH_PROFILE
+    DEFAULT_SEARCH_PROFILE,
 )
 
 selected_search_profile = default_search_profile
 
-# Temporary developer testing controls
+
 with st.sidebar.expander(
     "Developer Settings",
-    expanded=False
+    expanded=False,
 ):
+
+    preview_mode = st.toggle(
+        "Design preview (no live data)",
+        value=False,
+    )
 
     override_search_profile = st.checkbox(
         "Override default search profile",
-        value=False
+        value=False,
     )
 
     if override_search_profile:
@@ -107,7 +195,7 @@ with st.sidebar.expander(
         profile_options = [
             "sparse",
             "standard",
-            "dense"
+            "dense",
         ]
 
         selected_search_profile = st.selectbox(
@@ -116,7 +204,7 @@ with st.sidebar.expander(
             index=profile_options.index(
                 default_search_profile
             ),
-            key=f"search_profile_{selected_campus}"
+            key=f"search_profile_{selected_campus}",
         )
 
     st.caption(
@@ -124,79 +212,34 @@ with st.sidebar.expander(
         f"{selected_search_profile.title()}"
     )
 
-# ============================================================
-# 2. DASHBOARD HEADER
-# ============================================================
-
-# Dashboard header styling
-st.markdown(
-    """
-    <style>
-      h1.story-title {
-        color: #102A43;
-        font-size: clamp(2.25rem, 5.8vw, 5rem);
-        line-height: 1.05;
-        letter-spacing: -0.04em;
-        margin: 0 0 0.9rem 0;
-        max-width: 1100px;
-      }
-      .story-accent {
-        width: 64px;
-        height: 4px;
-        border-radius: 999px;
-        background: linear-gradient(90deg, #2563eb 0%, #38bdf8 100%);
-        margin-bottom: 1.35rem;
-      }
-      @media (max-width: 480px) {
-        h1.story-title {
-          font-size: clamp(26px, 8vw, 38px);
-          line-height: 1.1;
-          letter-spacing: -0.03em;
-          max-width: 100%;
-        }
-      }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Dynamic dashboard title
-st.markdown(
-    f"""
-    <h1 class="story-title">
-        What is the best gas station to fill up near
-        {escape(selected_campus)} Campus?
-    </h1>
-    <div class="story-accent"></div>
-    """,
-    unsafe_allow_html=True,
-)
-
 
 # ============================================================
-# 3. SIDEBAR - DATA CONTROLS
+# GAS PRICE REFRESH BUTTON
 # ============================================================
 
-st.sidebar.header("Google Places Data")
+with refresh_col:
 
-st.sidebar.caption(
-    f"Search location: GSU {selected_campus} Campus"
+    refresh_requested = st.button(
+        "Get Latest Gas Prices",
+        type="primary",
+        disabled=preview_mode,
+        width="stretch",
+    )
+
+
+# Reserve positions for the data status and map.
+status_area = st.container()
+
+# Side-by-side overview and interactive map.
+overview_col, map_col = st.columns(
+    [2, 3],
+    gap="large",
+    vertical_alignment="top",
 )
 
-# Initialize campus-specific session storage
-if "campus_data" not in st.session_state:
-    st.session_state["campus_data"] = {}
+overview_area = overview_col.container()
 
-preview_mode = st.sidebar.toggle(
-    "Design preview (no live data)",
-    value=False,
-)
-
-refresh_requested = st.sidebar.button(
-    "Get Latest Gas Prices",
-    type="primary",
-    disabled=preview_mode,
-)
+map_area = map_col.container()
 
 
 # ============================================================
@@ -233,26 +276,22 @@ if refresh_requested:
                 "retrieved_at": pd.Timestamp.now(tz="UTC"),
             }
 
-        st.sidebar.success(
-            "Gas station data retrieved!"
-        )
-
     except requests.RequestException as error:
 
-        st.sidebar.error(
+        status_area.error(
             f"Google Places request failed: {error}"
         )
 
     except KeyError:
 
-        st.sidebar.error(
+        status_area.error(
             "Google Places API key not found. "
             "Check .streamlit/secrets.toml."
         )
 
     except ValueError as error:
 
-        st.sidebar.error(
+        status_area.error(
             f"Google Places data error: {error}"
         )
 
@@ -268,22 +307,28 @@ search_metadata = campus_record.get("search_metadata")
 
 retrieved_at = campus_record.get("retrieved_at")
 
-if retrieved_at is not None and not preview_mode:
+if preview_mode:
+
+    status_area.caption(
+        "Design preview — live gas prices are not displayed."
+    )
+
+elif retrieved_at is not None:
 
     local_time = retrieved_at.tz_convert(
         "America/New_York"
     )
 
-    st.sidebar.caption(
-        f"{selected_campus} Campus data retrieved: "
-        f"{local_time:%b %d, %Y at %I:%M %p %Z}"
+    status_area.caption(
+        f"{selected_campus} Campus · "
+        f"Data retrieved {local_time:%b %d, %Y at %I:%M %p %Z}"
     )
 
-elif not preview_mode:
+else:
 
-    st.sidebar.info(
-        f"No data retrieved for {selected_campus} "
-        "Campus. Click Get Latest Gas Prices."
+    status_area.info(
+        f"Click Get Latest Gas Prices to explore "
+        f"stations near {selected_campus} Campus."
     )
 
 
@@ -576,31 +621,54 @@ if data_loaded:
 # 8. SEARCH PREFERENCES
 # ============================================================
 
-st.sidebar.header("Search Preferences")
-
-# Read the radius from our custom map component.
+# Read the radius from the custom map component.
 radius = get_selected_radius()
 
-st.sidebar.caption(
-    f"Selected radius: {radius:.2f} miles"
-)
 
-st.sidebar.caption(
-    "Adjust the radius using the slider above the map."
-)
+# Secondary search preferences.
+with st.popover("Price freshness"):
 
-max_age = st.sidebar.slider(
-    "Maximum time since update (hours)",
-    min_value=12,
-    max_value=72,
-    value=48,
-    step=12,
-)
+    max_age = st.slider(
+        "Price updated within (hours)",
+        min_value=12,
+        max_value=72,
+        value=48,
+        step=12,
+    )
+
+    st.caption(
+        "Only prices reported within this time "
+        "window are eligible for recommendations."
+    )
+
 
 st.caption(
-    "Station and fuel price data: Google Maps. "
+    f"Considering prices updated within {max_age} hours. "
     "Distances are straight-line estimates."
 )
+
+
+# ============================================================
+# INTERACTIVE MAP AND RADIUS SLIDER
+# ============================================================
+
+# The map and smooth radius slider are managed
+# by ui/map.py and the assets/ folder.
+#
+# Moving the slider locally filters the station
+# data without requesting new Google Places data.
+
+with map_area:
+
+    render_map(
+        df=df,
+        radius=radius,
+        max_age=max_age,
+        data_loaded=data_loaded,
+        campus_lat=CAMPUS_LAT,
+        campus_lon=CAMPUS_LON,
+        campus_name=selected_campus,
+    )
 
 
 # ============================================================
@@ -633,138 +701,268 @@ else:
     overview = None
 
 
+
 # ============================================================
 # 10. DASHBOARD OVERVIEW
 # ============================================================
 
-st.markdown(
-    """
-    <style>
-      .overview-heading {
-        color: #64748b;
-        font-size: 1.35rem;
-        font-weight: 800;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        margin: 0.45rem 0 1.35rem 0;
-      }
-      .overview-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 1.25rem;
-        margin-bottom: 1.35rem;
-      }
-      .overview-stat {
-        min-height: 150px;
-        background: #ffffff;
-        border: 1px solid #edf2f7;
-        border-radius: 14px;
-        padding: 1.15rem 1.25rem 1rem 1.25rem;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.035);
-      }
-      .overview-value {
-        color: #171717;
-        font-size: clamp(2.75rem, 4vw, 4rem);
-        font-weight: 800;
-        line-height: 0.95;
-        letter-spacing: -0.055em;
-        margin-bottom: 1.05rem;
-        white-space: nowrap;
-      }
-      .overview-label {
-        color: #64748b;
-        font-size: clamp(1.25rem, 1.8vw, 1.5rem);
-        line-height: 1.2;
-      }
-      .overview-callout {
-        border-left: 7px solid #2563eb;
-        background: linear-gradient(90deg, #eff6ff 0%, #ffffff 100%);
-        border-radius: 4px;
-        color: #111827;
-        font-size: clamp(1.25rem, 1.8vw, 1.5rem);
-        line-height: 1.45;
-        padding: 0.95rem 1.25rem;
-        margin: 0 0 1.35rem 0;
-      }
-      .overview-callout strong {
-        font-weight: 800;
-      }
-      @media (max-width: 800px) {
-        .overview-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-    </style>
-    <div class="overview-heading">Overview</div>
-    """,
-    unsafe_allow_html=True,
-)
+with overview_area:
 
-col1, col2, col3 = st.columns(3)
+    st.html(
+        """
+        <style>
 
-if data_loaded:
+          .overview-heading {
+            color: #102a43;
+            font-size: 1.75rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            margin-bottom: 1rem;
+          }
 
-    stations_found = overview["stations_found"]
+          .best-value-card {
+            background: #ffffff;
+            border: 1px solid #bbf7d0;
+            border-left: 5px solid #16a34a;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+          }
 
-    eligible_count = overview["eligible_count"]
+          .best-value-label {
+            color: #166534;
+            font-size: 0.9rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+          }
 
-    lowest_price = overview["lowest_price"]
+          .best-value-price {
+            color: #166534;
+            font-size: clamp(2.5rem, 4vw, 4rem);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.04em;
+            margin-bottom: 0.75rem;
+          }
 
-    if lowest_price is not None:
+          .best-value-unit {
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 0;
+          }
 
-        cheapest_price = f"${lowest_price:.2f}/gal"
+          .best-value-name {
+            color: #102a43;
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 0.35rem;
+          }
+
+          .best-value-distance {
+            color: #475569;
+            font-size: 1.1rem;
+            margin-bottom: 0.75rem;
+          }
+
+          .best-value-description {
+            color: #64748b;
+            font-size: 0.95rem;
+            line-height: 1.5;
+          }
+
+          .best-value-empty {
+            border-color: #e2e8f0;
+          }
+
+          .best-value-empty .best-value-label,
+          .best-value-empty .best-value-price {
+            color: #64748b;
+          }
+
+          .overview-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(2, minmax(0, 1fr));
+            gap: 0.85rem;
+            margin-bottom: 1rem;
+          }
+
+          .overview-stat {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1rem;
+          }
+
+          .overview-value {
+            color: #102a43;
+            font-size: clamp(1.8rem, 3vw, 2.8rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 0.5rem;
+          }
+
+          .overview-label {
+            color: #64748b;
+            font-size: 0.95rem;
+            line-height: 1.3;
+          }
+
+        </style>
+
+        <div class="overview-heading">
+            Overview
+        </div>
+        """,
+    )
+
+    # ----------------------------------------------
+    # PREPARE OVERVIEW METRICS
+    # ----------------------------------------------
+
+    if data_loaded:
+
+        stations_found = overview["stations_found"]
+
+        eligible_count = overview["eligible_count"]
 
     else:
 
-        cheapest_price = "—"
+        stations_found = "—"
 
-else:
-
-    stations_found = "—"
-    eligible_count = "—"
-    lowest_price = None
-    cheapest_price = "—"
+        eligible_count = "—"
 
 
-if lowest_price is not None:
-    lowest_display = f"${lowest_price:.2f}"
-else:
-    lowest_display = "—"
+    # ----------------------------------------------
+    # BEST VALUE RECOMMENDATION
+    # ----------------------------------------------
 
-st.markdown(
-    '<div class="overview-grid">'
-    f'<div class="overview-stat"><div class="overview-value">{stations_found}</div>'
-    '<div class="overview-label">Stations within radius</div></div>'
-    f'<div class="overview-stat"><div class="overview-value">{eligible_count}</div>'
-    '<div class="overview-label">With an eligible price</div></div>'
-    f'<div class="overview-stat"><div class="overview-value">{lowest_display}</div>'
-    '<div class="overview-label">Lowest gas price</div></div>'
-    "</div>",
-    unsafe_allow_html=True,
-)
+    if data_loaded and not filtered.empty:
 
-if data_loaded and not filtered.empty:
-    best_station = get_best_station(filtered)
-    cheapest_stations = get_cheapest_stations(filtered)
+        best_station = get_best_station(filtered)
 
-    st.markdown(
-        '<div class="overview-callout">'
-        "<strong>Closest station with the lowest price:</strong> "
-        f"{best_station['Station']} "
-        f"({best_station['Brand']}), "
-        f"${best_station['Regular Price']:.2f}/gal, "
-        f"{best_station['Distance (miles)']:.2f} miles away."
-        "</div>",
-        unsafe_allow_html=True,
+        best_name = escape(
+            str(best_station["Station"])
+        )
+
+        best_price = float(
+            best_station["Regular Price"]
+        )
+
+        best_distance = float(
+            best_station["Distance (miles)"]
+        )
+
+        st.html(
+            f"""
+            <div class="best-value-card">
+
+                <div class="best-value-label">
+                    ★ Best Value
+                </div>
+
+                <div class="best-value-price">
+                    ${best_price:.2f}
+                    <span class="best-value-unit">
+                        /gal
+                    </span>
+                </div>
+
+                <div class="best-value-name">
+                    {best_name}
+                </div>
+
+                <div class="best-value-distance">
+                    {best_distance:.2f} miles from campus
+                </div>
+
+                <div class="best-value-description">
+                    Closest station offering the
+                    lowest eligible regular gas price.
+                </div>
+
+            </div>
+            """,
+        )
+
+    else:
+
+        if not data_loaded:
+
+            message = (
+                "Retrieve gas prices to find the "
+                "best station near your campus."
+            )
+
+        else:
+
+            message = (
+                "No eligible prices match your "
+                "current search preferences."
+            )
+
+        st.html(
+            f"""
+            <div class="best-value-card best-value-empty">
+
+                <div class="best-value-label">
+                    Best Value
+                </div>
+
+                <div class="best-value-price">
+                    —
+                </div>
+
+                <div class="best-value-description">
+                    {message}
+                </div>
+
+            </div>
+            """,
+        )
+
+
+    # ----------------------------------------------
+    # SUPPORTING OVERVIEW STATISTICS
+    # ----------------------------------------------
+
+    st.html(
+        f"""
+        <div class="overview-grid">
+
+            <div class="overview-stat">
+
+                <div class="overview-value">
+                    {stations_found}
+                </div>
+
+                <div class="overview-label">
+                    Stations within radius
+                </div>
+
+            </div>
+
+            <div class="overview-stat">
+
+                <div class="overview-value">
+                    {eligible_count}
+                </div>
+
+                <div class="overview-label">
+                    Stations with eligible prices
+                </div>
+
+            </div>
+
+        </div>
+        """,
     )
 
-elif not data_loaded:
-    st.markdown(
-        '<div class="overview-callout">'
-        "<strong>Best station:</strong> "
-        "Load gas station data to see the closest lowest-priced option."
-        "</div>",
-        unsafe_allow_html=True,
+    st.caption(
+        f"Considering gas prices reported within "
+        f"the past {max_age} hours."
     )
 
 
@@ -987,79 +1185,6 @@ render_price_charts(
 )
 
 
-
-# ============================================================
-# 14. INTERACTIVE GAS STATION MAP
-# ============================================================
-
-# Map section styling
-st.markdown(
-    """
-    <style>
-      .map-section-eyebrow {
-        color: #2563eb;
-        font-size: 0.95rem;
-        font-weight: 800;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        margin: 1.9rem 0 0.35rem 0;
-      }
-      .map-section-title {
-        color: #102a43;
-        font-size: clamp(2rem, 3vw, 3rem);
-        line-height: 1.08;
-        letter-spacing: -0.03em;
-        margin: 0 0 0.45rem 0;
-      }
-      .map-section-description {
-        color: #64748b;
-        font-size: 1.12rem;
-        line-height: 1.45;
-        max-width: 760px;
-        margin: 0 0 1.1rem 0;
-      }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Dynamic map heading
-st.markdown(
-    f"""
-    <div class="map-section-eyebrow">
-        Explore the area
-    </div>
-
-    <h2 class="map-section-title">
-        Gas Stations Near {escape(selected_campus)} Campus
-    </h2>
-
-    <p class="map-section-description">
-        Adjust the search radius and compare eligible
-        stations around {escape(selected_campus)} Campus.
-    </p>
-    """,
-    unsafe_allow_html=True,
-)
-
-# The map and smooth radius slider are managed
-# by ui/map.py and the assets/ folder.
-#
-# Moving the slider locally filters the station
-# data without requesting new Google Places data.
-
-# Render interactive map
-render_map(
-    df=df,
-    radius=radius,
-    max_age=max_age,
-    data_loaded=data_loaded,
-    campus_lat=CAMPUS_LAT,
-    campus_lon=CAMPUS_LON,
-    campus_name=selected_campus,
-)
-
-
 # ============================================================
 # 15. AVAILABLE GAS STATIONS TABLE
 # ============================================================
@@ -1119,7 +1244,7 @@ if filtered.empty:
         )
     else:
         st.info(
-            "Load gas station data from the sidebar to see station prices here."
+            "Click Get Latest Gas Prices above to compare nearby stations."
         )
 else:
     # Identify the best station and all lowest-price stations.
@@ -1156,7 +1281,7 @@ else:
     # Highlight recommendation and price cells.
     def highlight_recommendation(row):
 
-        if row["Place ID"] == best_id:
+        if row["Recommendation"] == "★ Best Value":
 
             style = (
                 "background-color: #dcfce7; "
@@ -1164,7 +1289,7 @@ else:
                 "font-weight: 800;"
             )
 
-        elif row["Place ID"] in cheapest_ids:
+        elif row["Recommendation"] == "Lowest Price":
 
             style = (
                 "background-color: #ccfbf1; "
@@ -1174,10 +1299,16 @@ else:
 
         else:
 
-            style = "color: #1d4ed8; font-weight: 700;"
+            style = (
+                "color: #1d4ed8; "
+                "font-weight: 700;"
+            )
 
         return [
-            style if col in ["Regular Price", "Recommendation"]
+            style if col in [
+                "Regular Price",
+                "Recommendation"
+            ]
             else ""
             for col in row.index
         ]
@@ -1206,6 +1337,29 @@ else:
         },
     ]
 
+    # ----------------------------------------------
+    # PREPARE USER-FACING TABLE
+    # ----------------------------------------------
+
+    display_df["Last Updated"] = pd.to_datetime(
+        display_df["Last Updated"],
+        utc=True,
+        errors="coerce"
+    ).dt.tz_convert("America/New_York")
+
+
+    # Select and order the displayed columns.
+    display_columns = [
+        "Station",
+        "Recommendation",
+        "Regular Price",
+        "Distance (miles)",
+        "Address",
+        "Last Updated",
+    ]
+
+    display_df = display_df[display_columns].copy()
+
     styled_table = (
         display_df.style
         .set_table_styles(table_styles)
@@ -1213,14 +1367,55 @@ else:
     )
 
     st.container(border=True).dataframe(
+
         styled_table,
+
         width="stretch",
+
         hide_index=True,
+
+        column_config={
+
+            "Station": st.column_config.TextColumn(
+                "Station",
+                width="medium",
+            ),
+
+            "Recommendation": st.column_config.TextColumn(
+                "Recommendation",
+                width="medium",
+            ),
+
+            "Regular Price": st.column_config.NumberColumn(
+                "Price / gal",
+                format="$%.2f",
+            ),
+
+            "Distance (miles)": st.column_config.NumberColumn(
+                "Distance",
+                format="%.2f mi",
+                help="Straight-line distance from campus.",
+            ),
+
+            "Address": st.column_config.TextColumn(
+                "Address",
+                width="large",
+            ),
+
+            "Last Updated": st.column_config.DatetimeColumn(
+                "Last Updated (ET)",
+                format="MMM D, h:mm A",
+                timezone="America/New_York",
+                width="medium",
+                help="Time the gas price was last reported.",
+            ),
+
+        },
     )
 
     st.download_button(
         "Download filtered stations (CSV)",
-        data=filtered.to_csv(index=False).encode("utf-8"),
+        data=display_df.to_csv(index=False).encode("utf-8"),
         file_name=(
             f"gsu_gas_stations_"
             f"{selected_campus.lower().replace(' ', '_')}_"

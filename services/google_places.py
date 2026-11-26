@@ -25,6 +25,11 @@ import math
 import pandas as pd
 import requests
 import re
+import logging
+
+logger = logging.getLogger(__name__)
+
+logger.setLevel(logging.INFO)
 
 
 # ==================================================
@@ -585,10 +590,9 @@ def remove_colocated_listings(places):
 
             duplicate_places.append(place)
 
-            print(
-                "Likely duplicate:",
+            logger.debug(
+                "Likely duplicate: %s | Matched with: %s",
                 (place.get("displayName") or {}).get("text"),
-                "| Matched with:",
                 (matches[0].get("displayName") or {}).get("text")
             )
 
@@ -951,7 +955,7 @@ def fetch_google_stations(
         
         for place in results:
 
-            print({
+            logger.debug({
                 "place_id": place.get("id"),
 
                 "name": (

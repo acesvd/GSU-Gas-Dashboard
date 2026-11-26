@@ -228,6 +228,15 @@ def prepare_map_stations(df, max_age):
         station_id = str(place_id)
 
         station_name = str(row["Station"])
+        
+        # Extract the station address.
+        raw_address = row["Address"]
+
+        station_address = (
+            str(raw_address).strip()
+            if pd.notna(raw_address)
+            else ""
+        )
 
         latitude = float(latitude)
 
@@ -242,10 +251,7 @@ def prepare_map_stations(df, max_age):
 
         if pd.notna(raw_price):
 
-            price = round(
-                float(raw_price),
-                2
-            )
+            price = float(raw_price)
 
         else:
 
@@ -281,6 +287,8 @@ def prepare_map_stations(df, max_age):
         eligible = (
 
             price is not None
+            
+            and price > 0
 
             and age is not None
 
@@ -297,6 +305,7 @@ def prepare_map_stations(df, max_age):
 
             "id": station_id,
             "name": station_name,
+            "address": station_address,
             "lat": latitude,
             "lng": longitude,
             "distance": distance,
@@ -435,7 +444,7 @@ def render_map(
 
         width="stretch",
 
-        height=700
+        height=620
 
     )
 
