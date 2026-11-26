@@ -24,6 +24,7 @@ import math
 
 import pandas as pd
 import requests
+import re
 
 
 # ==================================================
@@ -40,6 +41,9 @@ GOOGLE_PLACES_FIELD_MASK = (
     "places.displayName,"
     "places.formattedAddress,"
     "places.location,"
+    "places.primaryType,"
+    "places.types,"
+    "places.businessStatus,"
     "places.fuelOptions"
 )
 
@@ -49,11 +53,41 @@ EARTH_RADIUS_MILES = 3958.7613
 
 MAX_RESULT_COUNT = 20
 
+# MAX_SEARCH_DISTANCE_MILES = 3.0
+
+# # SEARCH_CIRCLE_RADIUS_MILES = 1.7
+
+# # SEARCH_OFFSETS_MILES = [-1.5, 0.0, 1.5]
+
+# SEARCH_CIRCLE_RADIUS_MILES = 1.15
+
+# SEARCH_OFFSETS_MILES = [
+#     -2.25,
+#     -0.75,
+#      0.75,
+#      2.25
+# ]
+
 MAX_SEARCH_DISTANCE_MILES = 3.0
 
-SEARCH_CIRCLE_RADIUS_MILES = 1.7
+SEARCH_PROFILES = {
 
-SEARCH_OFFSETS_MILES = [-1.5, 0.0, 1.5]
+    "sparse": {
+        "radius": 2.2,
+        "offsets": [-1.5, 1.5]
+    },
+
+    "standard": {
+        "radius": 1.7,
+        "offsets": [-1.5, 0.0, 1.5]
+    },
+
+    "dense": {
+        "radius": 1.15,
+        "offsets": [-2.25, -0.75, 0.75, 2.25]
+    }
+
+}
 
 
 # ==================================================
@@ -88,7 +122,26 @@ KNOWN_BRANDS = [
     "Citgo",
     "Exxon",
     "Mobil",
-    "Amoco"
+    "Amoco",
+    "Valero",
+    "76",
+    "Kroger Fuel Center",
+    "Costco",
+    "Sam's Club",
+    "RaceTrac",
+    "RaceWay",
+    "Murphy USA",
+    "Murphy Express",
+    "Marathon",
+    "Sunoco",
+    "Speedway",
+    "Circle K",
+    "Wawa",
+    "7-Eleven",
+    "Gulf",
+    "Love's",
+    "Pilot",
+    "Flying J",
 ]
 
 
@@ -142,18 +195,24 @@ def distance_miles(lat1, lon1, lat2, lon2):
 def identify_brand(station_name):
     """
     Identify a station's provisional brand
-    using its Google Places display name.
-
-    Returns 'Unverified' when no known brand
-    is identified.
+    using whole-word matching.
     """
 
     station_name = str(station_name)
 
     for brand in KNOWN_BRANDS:
 
-        if brand.lower() in station_name.lower():
+        pattern = (
+            r"(?<!\w)"
+            + re.escape(brand)
+            + r"(?!\w)"
+        )
 
+        if re.search(
+            pattern,
+            station_name,
+            flags=re.IGNORECASE
+        ):
             return brand
 
     return "Unverified"
@@ -245,21 +304,105 @@ def extract_regular_price(place):
 
 
 # ==================================================
+# 6A. DUPLICATE PLACE RECORD SELECTION
+# ==================================================
+
+def select_preferred_place(existing_place, new_place):
+    """
+    Select the preferred record when multiple API
+    searches return the same Google Place ID.
+
+    Prioritize:
+        1. Availability of regular unleaded price
+        2. Most recent regular price timestamp
+        3. Completeness of fuel price information
+    """
+
+    existing_price, existing_time = (
+        extract_regular_price(existing_place)
+    )
+
+    new_price, new_time = (
+        extract_regular_price(new_place)
+    )
+
+    existing_has_price = pd.notna(existing_price)
+    new_has_price = pd.notna(new_price)
+
+    # ----------------------------------------------
+    # PRIORITIZE REGULAR PRICE AVAILABILITY
+    # ----------------------------------------------
+
+    if new_has_price and not existing_has_price:
+        return new_place
+
+    if existing_has_price and not new_has_price:
+        return existing_place
+
+    # ----------------------------------------------
+    # PRIORITIZE REGULAR PRICE FRESHNESS
+    # ----------------------------------------------
+
+    if existing_has_price and new_has_price:
+
+        existing_timestamp = pd.to_datetime(
+            existing_time,
+            utc=True,
+            errors="coerce"
+        )
+
+        new_timestamp = pd.to_datetime(
+            new_time,
+            utc=True,
+            errors="coerce"
+        )
+
+        if pd.notna(new_timestamp):
+
+            if pd.isna(existing_timestamp):
+                return new_place
+
+            if new_timestamp > existing_timestamp:
+                return new_place
+
+            if new_timestamp < existing_timestamp:
+                return existing_place
+
+        elif pd.notna(existing_timestamp):
+            return existing_place
+
+    # ----------------------------------------------
+    # PRIORITIZE FUEL INFORMATION COMPLETENESS
+    # ----------------------------------------------
+
+    existing_fuels = (
+        existing_place.get("fuelOptions") or {}
+    ).get("fuelPrices") or []
+
+    new_fuels = (
+        new_place.get("fuelOptions") or {}
+    ).get("fuelPrices") or []
+
+    if len(new_fuels) > len(existing_fuels):
+        return new_place
+
+    # Retain existing record if neither is preferable
+    return existing_place
+
+
+# ==================================================
 # 7. GENERATE GEOGRAPHIC SEARCH AREAS
 # ==================================================
 
-def generate_search_areas():
+def generate_search_areas(search_profile="dense"):
     """
-    Generate nine overlapping geographic search areas.
+    Generate overlapping geographic search areas
+    using the specified search profile.
 
-    Each search circle has a radius of 1.7 miles.
-
-    Search centers are shifted north/south and
-    east/west using offsets of:
-
-        -1.5 miles
-         0.0 miles
-         1.5 miles
+    Parameters
+    ----------
+    search_profile : str
+        Name of the geographic search configuration.
 
     Returns
     -------
@@ -267,21 +410,193 @@ def generate_search_areas():
         (north_offset, east_offset, radius_miles)
     """
 
+    if search_profile not in SEARCH_PROFILES:
+
+        raise ValueError(
+            f"Unknown search profile: {search_profile}"
+        )
+
+    profile = SEARCH_PROFILES[search_profile]
+
+    offsets = profile["offsets"]
+
+    radius = profile["radius"]
+
     search_areas = []
 
-    for north in SEARCH_OFFSETS_MILES:
+    for north in offsets:
 
-        for east in SEARCH_OFFSETS_MILES:
+        for east in offsets:
 
             search_areas.append(
                 (
                     north,
                     east,
-                    SEARCH_CIRCLE_RADIUS_MILES
+                    radius
                 )
             )
 
     return search_areas
+
+
+# ==================================================
+# VALIDATE GAS STATION CLASSIFICATION
+# ==================================================
+
+def is_valid_gas_station(place):
+    """
+    Retain high-confidence and likely gas stations
+    using business status, fuel information,
+    and provisional brand identification.
+    """
+
+    primary_type = place.get("primaryType")
+
+    business_status = place.get("businessStatus")
+
+    station_name = (
+        place.get("displayName") or {}
+    ).get("text", "Unknown")
+
+    fuel_options = place.get("fuelOptions") or {}
+
+    fuel_prices = fuel_options.get("fuelPrices") or []
+
+    brand = identify_brand(station_name)
+
+    # 1. Exclude closed businesses
+    if business_status in {
+        "CLOSED_PERMANENTLY",
+        "CLOSED_TEMPORARILY"
+    }:
+        return False
+
+    # 2. Require gas station classification
+    if primary_type != "gas_station":
+        return False
+
+    # 3. Accept stations with fuel price information
+    if fuel_prices:
+        return True
+
+    # 4. Accept likely branded gas stations,
+    # even when fuel prices are missing
+    if brand != "Unverified":
+        return True
+
+    # 5. Exclude unsupported listings
+    return False
+
+# Initial physical-location matching threshold
+DUPLICATE_DISTANCE_METERS = 50
+
+def has_fuel_prices(place):
+
+    fuel_options = place.get("fuelOptions") or {}
+
+    return bool(fuel_options.get("fuelPrices"))
+
+
+def normalize_address(place):
+
+    address = place.get("formattedAddress") or ""
+
+    address = address.casefold()
+
+    address = re.sub(r"[^\w\s]", " ", address)
+
+    return " ".join(address.split())
+
+
+def remove_colocated_listings(places):
+    """
+    Remove likely duplicate listings that have
+    no fuel prices but share an address and
+    location with a listing that has fuel prices.
+    """
+
+    priced_places = [
+        place for place in places
+        if has_fuel_prices(place)
+    ]
+
+    retained_places = []
+
+    duplicate_places = []
+
+    for place in places:
+
+        # Always retain listings with fuel data
+        # at this stage.
+        if has_fuel_prices(place):
+
+            retained_places.append(place)
+
+            continue
+
+        location = place.get("location") or {}
+
+        lat = location.get("latitude")
+        lon = location.get("longitude")
+
+        address = normalize_address(place)
+
+        # Insufficient information to match safely
+        if lat is None or lon is None or not address:
+
+            retained_places.append(place)
+
+            continue
+
+        matches = []
+
+        for priced_place in priced_places:
+
+            # Require matching addresses
+            if address != normalize_address(priced_place):
+
+                continue
+
+            priced_location = (
+                priced_place.get("location") or {}
+            )
+
+            priced_lat = priced_location.get("latitude")
+            priced_lon = priced_location.get("longitude")
+
+            if priced_lat is None or priced_lon is None:
+
+                continue
+
+            distance = distance_miles(
+                lat,
+                lon,
+                priced_lat,
+                priced_lon
+            ) * MILES_TO_METERS
+
+            if distance <= DUPLICATE_DISTANCE_METERS:
+
+                matches.append(priced_place)
+
+        # Suppress a likely duplicate only when
+        # exactly one priced listing matches.
+        if len(matches) == 1:
+
+            duplicate_places.append(place)
+
+            print(
+                "Likely duplicate:",
+                (place.get("displayName") or {}).get("text"),
+                "| Matched with:",
+                (matches[0].get("displayName") or {}).get("text")
+            )
+
+        else:
+
+            retained_places.append(place)
+
+    return retained_places, duplicate_places
 
 
 # ==================================================
@@ -301,6 +616,10 @@ def parse_station(
     Returns None if required location
     information is missing.
     """
+    
+    # Validate business classification
+    if not is_valid_gas_station(place):
+        return None
 
     # ----------------------------------------------
     # IDENTIFY STATION
@@ -437,7 +756,8 @@ def parse_station(
 def fetch_google_stations(
     api_key,
     campus_lat,
-    campus_lon
+    campus_lon,
+    search_profile="dense"
 ):
     """
     Retrieve and process gas station data.
@@ -505,7 +825,9 @@ def fetch_google_stations(
     # GENERATE SEARCH AREAS
     # ----------------------------------------------
 
-    search_areas = generate_search_areas()
+    search_areas = generate_search_areas(
+        search_profile=search_profile
+    )
 
 
     # ----------------------------------------------
@@ -519,6 +841,13 @@ def fetch_google_stations(
     requests_made = 0
 
     search_details = []
+
+    # Additional retrieval diagnostics
+    raw_results_count = 0
+
+    missing_place_id_count = 0
+
+    repeated_place_id_count = 0
 
 
     # ----------------------------------------------
@@ -556,7 +885,7 @@ def fetch_google_stations(
 
         payload = {
 
-            "includedTypes": [
+            "includedPrimaryTypes": [
                 "gas_station"
             ],
 
@@ -617,6 +946,36 @@ def fetch_google_stations(
             "places",
             []
         )
+        
+        raw_results_count += len(results)
+        
+        for place in results:
+
+            print({
+                "place_id": place.get("id"),
+
+                "name": (
+                    place.get("displayName") or {}
+                ).get("text"),
+
+                "address": place.get("formattedAddress"),
+
+                "latitude": (
+                    place.get("location") or {}
+                ).get("latitude"),
+
+                "longitude": (
+                    place.get("location") or {}
+                ).get("longitude"),
+
+                "primary_type": place.get("primaryType"),
+
+                "types": place.get("types"),
+
+                "business_status": place.get("businessStatus"),
+
+                "fuel_options": place.get("fuelOptions", {})
+            })
 
         hit_cap = (
             len(results) == MAX_RESULT_COUNT
@@ -654,9 +1013,30 @@ def fetch_google_stations(
 
             place_id = place.get("id")
 
-            if place_id:
+            # Track records without Place IDs
+            if not place_id:
+
+                missing_place_id_count += 1
+
+                continue
+
+            # Store newly encountered Place IDs
+            if place_id not in unique_places:
 
                 unique_places[place_id] = place
+
+            else:
+
+                # Track repeated Place IDs
+                repeated_place_id_count += 1
+
+                # Retain the preferred record
+                unique_places[place_id] = (
+                    select_preferred_place(
+                        unique_places[place_id],
+                        place
+                    )
+                )
 
 
     # ==================================================
@@ -669,9 +1049,64 @@ def fetch_google_stations(
         tz="UTC"
     )
 
+    # ----------------------------------------------
+    # INITIALIZE CLEANING DIAGNOSTICS
+    # ----------------------------------------------
+
+    closed_business_count = 0
+
+    unverified_listing_count = 0
+
+    invalid_location_count = 0
+
+    outside_radius_count = 0
+
+
+    # ----------------------------------------------
+    # EXCLUDE CLOSED BUSINESSES
+    # ----------------------------------------------
+
+    candidate_places = []
 
     for place in unique_places.values():
 
+        if place.get("businessStatus") in {
+            "CLOSED_TEMPORARILY",
+            "CLOSED_PERMANENTLY"
+        }:
+
+            closed_business_count += 1
+
+            continue
+
+        candidate_places.append(place)
+
+
+    # ----------------------------------------------
+    # REMOVE LIKELY COLOCATED DUPLICATES
+    # ----------------------------------------------
+
+    deduplicated_places, duplicate_places = (
+        remove_colocated_listings(candidate_places)
+    )
+
+    colocated_duplicate_count = len(duplicate_places)
+
+
+    # ----------------------------------------------
+    # VALIDATE AND PROCESS STATIONS
+    # ----------------------------------------------
+
+    for place in deduplicated_places:
+
+        # Validate station classification
+        if not is_valid_gas_station(place):
+
+            unverified_listing_count += 1
+
+            continue
+
+        # Convert API response into station record
         station = parse_station(
 
             place=place,
@@ -684,22 +1119,24 @@ def fetch_google_stations(
 
         )
 
-
+        # Track invalid location records
         if station is None:
+
+            invalid_location_count += 1
 
             continue
 
-
-        # ------------------------------------------
-        # KEEP STATIONS WITHIN THREE MILES
-        # ------------------------------------------
-
+        # Exclude stations outside maximum radius
         if (
             station["Distance (miles)"]
-            <= MAX_SEARCH_DISTANCE_MILES
+            > MAX_SEARCH_DISTANCE_MILES
         ):
 
-            rows.append(station)
+            outside_radius_count += 1
+
+            continue
+
+        rows.append(station)
 
 
     # ----------------------------------------------
@@ -715,20 +1152,92 @@ def fetch_google_stations(
     # ==================================================
     # 11. SEARCH METADATA
     # ==================================================
+    
+    # ----------------------------------------------
+    # VALIDATE RECORD COUNT RECONCILIATION
+    # ----------------------------------------------
+
+    total_removed = (
+
+        missing_place_id_count
+
+        + repeated_place_id_count
+
+        + closed_business_count
+
+        + colocated_duplicate_count
+
+        + unverified_listing_count
+
+        + invalid_location_count
+
+        + outside_radius_count
+
+    )
+
+    reconciliation_difference = (
+
+        raw_results_count
+
+        - total_removed
+
+        - len(stations_df)
+
+    )
 
     search_metadata = {
 
-        "unique_listings": len(stations_df),
-
-        "unique_google_ids": len(unique_places),
+        # API retrieval information
+        "requests_made": requests_made,
 
         "capped_searches": capped_searches,
 
-        "requests_made": requests_made,
+        "raw_results": raw_results_count,
 
-        "search_details": search_details
+        "search_details": search_details,
 
+        # Place ID diagnostics
+        "missing_place_ids": missing_place_id_count,
+
+        "repeated_place_ids": repeated_place_id_count,
+
+        "unique_google_ids": len(unique_places),
+
+        # Cleaning diagnostics
+        "closed_businesses_removed": closed_business_count,
+
+        "colocated_duplicates_removed": colocated_duplicate_count,
+
+        "unverified_listings_removed": unverified_listing_count,
+
+        "invalid_locations_removed": invalid_location_count,
+
+        "outside_radius_removed": outside_radius_count,
+
+        # Final results
+        "unique_listings": len(stations_df),
+
+        "stations_with_prices": int(
+            stations_df["Regular Price"].notna().sum()
+        ),
+
+        "stations_without_prices": int(
+            stations_df["Regular Price"].isna().sum()
+        ),
+        
+        "total_removed": total_removed,
+
+        "reconciliation_difference": reconciliation_difference,
+        
+        "search_profile": search_profile,
+
+        "search_circle_radius": (
+            SEARCH_PROFILES[search_profile]["radius"]
+        ),
+
+        "search_grid_size": len(
+            SEARCH_PROFILES[search_profile]["offsets"]
+        ),
     }
-
 
     return stations_df, search_metadata

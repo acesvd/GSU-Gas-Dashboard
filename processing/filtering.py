@@ -288,7 +288,7 @@ def get_cheapest_stations(eligible_df):
     # ----------------------------------------------
 
     cheapest = cheapest.sort_values(
-        "Distance (miles)"
+        ["Distance (miles)", "Place ID"]
     )
 
 

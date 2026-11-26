@@ -88,22 +88,8 @@
     border-radius: 10px;
 
     cursor: pointer;
-    accent-color: #2563eb !important;
-    background-color: #d9e2ec !important;
 
-    background: linear-gradient(
-        to right,
-
-        #2563eb 0%,
-
-        #2563eb
-        var(--gsu-slider-progress, 60%),
-
-        #d9e2ec
-        var(--gsu-slider-progress, 60%),
-
-        #d9e2ec 100%
-    );
+    background: transparent !important;
 }
 
 
@@ -318,10 +304,16 @@
 }
 
 
-/* Cheapest eligible station: green */
+/* Best Value station: green */
+
+.gsu-legend-dot.best {
+    background-color: #16a34a;
+}
+
+/* Other lowest-price stations: teal */
 
 .gsu-legend-dot.cheapest {
-    background-color: #16a34a;
+    background-color: #0d9488;
 }
 
 

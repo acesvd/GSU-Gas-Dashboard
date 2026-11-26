@@ -58,7 +58,16 @@ The radius slider operates locally using previously retrieved data, so adjusting
 
 ### Best-Value Station Summary
 
-The dashboard highlights the lowest-priced eligible station within the selected radius. When multiple stations share the lowest price, it selects the closest station.
+The dashboard identifies the lowest-priced eligible gas stations within the selected radius.
+
+"Best value" accounts for:
+
+- Regular unleaded gas price.
+- Distance from campus.
+- Availability of price information.
+- Age of reported prices.
+
+When multiple stations share the lowest price, the dashboard selects the closest station among those tied.
 
 ### Detour Value Calculator
 
@@ -138,7 +147,7 @@ flowchart TD
     C["Deduplicate and store results"]
     D["Clean and validate data"]
     E["Apply radius and price-age filters"]
-    F["Metrics, detour calculator, charts, map, and table"]
+    F["Metrics, best-value summary, detour calculator, charts, map, and table"]
 
     A --> B
     B --> C
@@ -202,7 +211,14 @@ The application:
 
 This currently defines the "best" option as the **lowest-priced eligible station, with distance used as a tiebreaker**.
 
-The station summary uses price and straight-line distance; the detour calculator separately estimates fuel cost using the entered fuel efficiency.
+The station summary uses price and straight-line distance; the detour calculator separately estimates fuel cost using the entered fuel efficiency. The station ranking does not optimize net savings across all stations, and actual driving distances and times are not included.
+
+For the nearest and cheapest eligible stations, the detour calculator computes:
+
+- Pump savings = (nearest station price − cheapest station price) × gallons per fill-up (minimum $0).
+- Extra round-trip miles = 2 × (cheapest station distance − nearest station distance) (minimum 0 miles).
+- Extra fuel cost = extra round-trip miles ÷ vehicle efficiency (mpg) × cheapest station price.
+- Net savings = pump savings − extra fuel cost.
 
 ### Step 5: Display Results
 
@@ -213,7 +229,7 @@ The filtered data is sent to the dashboard components:
 - Detour value calculator.
 - Price comparison charts.
 - Interactive Google Map.
-- Available stations table.
+- Available stations table with CSV export.
 
 When the radius or price-age setting changes, these components update using data already retrieved.
 
@@ -245,8 +261,9 @@ GSU-Gas-Dashboard/
 │   └── filtering.py
 │
 ├── .streamlit/
-│   └── secrets.toml          # Local only; never commit
-│
+│   └── secrets.toml         # Local only; never commit
+│   
+├── requirements.txt
 ├── .gitignore
 └── README.md
 ```
@@ -265,6 +282,7 @@ GSU-Gas-Dashboard/
 | `assets/map.css` | Map and slider styling |
 | `assets/map.js` | JavaScript map interactions and radius slider behavior |
 | `.streamlit/secrets.toml` | Stores API credentials locally |
+| `requirements.txt` | Lists pinned Python package dependencies |
 | `.gitignore` | Prevents sensitive and unnecessary files from being committed |
 
 The separation of modules allows developers to modify individual components without needing to edit the entire application.
@@ -306,10 +324,8 @@ It relies on Streamlit's custom components functionality.
 Open a terminal and run:
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/GSU-Gas-Dashboard.git
+git clone https://github.com/acesvd/GSU-Gas-Dashboard.git
 ```
-
-Replace the URL with the actual GitHub repository URL.
 
 Navigate into the project:
 
@@ -353,13 +369,13 @@ When the environment is activated, the terminal should display a prefix similar 
 
 ### Step 3: Install Dependencies
 
-If a `requirements.txt` file is available:
+Install the dependencies listed in `requirements.txt`:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-Otherwise, install the required packages manually:
+Alternatively, if the file is unavailable, install the required packages manually:
 
 ```bash
 python -m pip install streamlit pandas plotly requests
@@ -578,7 +594,7 @@ Radius changes do not require additional Places API searches.
 
 **Note:** The maximum searchable coverage is determined by the data originally retrieved. Increasing the slider beyond previously retrieved coverage would require a different search implementation.
 
-### Adjust Maximum Price Age
+### Adjust Maximum Time Since Update
 
 Use the sidebar's **Maximum time since update (hours)** control to limit how long ago a gas price was reported.
 
@@ -589,6 +605,14 @@ For example:
 - 72 hours: More permissive; may include older reports.
 
 Stations missing usable price timestamps are excluded from eligible-price comparisons.
+
+### Evaluate Detour Savings
+
+In the **Is the detour worth it?** section, adjust **Gallons per fill-up** (default: 12 gallons) and **Car efficiency (mpg)** (default: 25 mpg). Review the estimated pump savings, extra fuel cost, and net savings. These estimates compare the cheapest eligible station with the nearest eligible station and do not use actual driving routes.
+
+### Export Filtered Stations
+
+Select **Download filtered stations (CSV)** below the available stations table to save the currently filtered data.
 
 ### Design Preview Mode
 
@@ -695,7 +719,7 @@ These fields are processed using Pandas and passed to the dashboard components.
 
 Not every Google Places listing includes fuel price information.
 
-Stations without usable regular gas prices may be included in station discovery results but are excluded from eligible-price comparisons and the best-value summary.
+Stations without usable regular gas prices may be included in station discovery results but are excluded from eligible-price comparisons and the best-value summary and detour calculator.
 
 ### Geographic Coverage
 
@@ -728,9 +752,9 @@ Users should verify gas prices before traveling.
 
 ### Best-Value Selection Method
 
-The best-value summary identifies the lowest available eligible price and uses proximity to break ties.
+The best-value summary identifies the lowest available eligible price and uses proximity to break ties. The separate detour calculator estimates net savings for that station relative to the nearest eligible station; it does not search all stations for the highest net savings.
 
-It does not currently optimize for:
+The best-value summary does not currently optimize for:
 
 - Fuel consumption during travel.
 - Round-trip driving costs.
@@ -738,6 +762,8 @@ It does not currently optimize for:
 - Gas station loyalty programs.
 - Membership discounts.
 - Differences in fuel quality or service.
+
+The detour calculator uses straight-line distances from campus and the cheapest station's listed fuel price to approximate incremental travel costs. It does not account for road routes, traffic, travel time, or other vehicle operating costs.
 
 ### Data Persistence
 
@@ -933,9 +959,9 @@ Potential next steps include:
 
 ### Analytical Improvements
 
-- Estimated driving costs.
+- More accurate driving cost estimates using actual routes.
 - Driving distance and travel time.
-- Total trip cost comparisons.
+- Total trip cost comparisons across all eligible stations.
 - Improved station ranking methodology.
 - Additional brand-level comparisons.
 - Price freshness indicators.

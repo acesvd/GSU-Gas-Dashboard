@@ -458,7 +458,7 @@ def render_price_charts(eligible_df):
 
             st.plotly_chart(
                 fig_station,
-                use_container_width=True,
+                width='stretch',
                 key="station-price-chart",
             )
 
@@ -476,7 +476,7 @@ def render_price_charts(eligible_df):
 
             st.plotly_chart(
                 fig_distance,
-                use_container_width=True,
+                width='stretch',
                 key="price-distance-chart",
             )
 
@@ -496,6 +496,6 @@ def render_price_charts(eligible_df):
 
         st.plotly_chart(
             fig_brand,
-            use_container_width=True,
+            width='stretch',
             key="brand-price-chart",
         )

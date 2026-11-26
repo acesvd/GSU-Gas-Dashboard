@@ -296,19 +296,12 @@ def prepare_map_stations(df, max_age):
         station_record = {
 
             "id": station_id,
-
             "name": station_name,
-
             "lat": latitude,
-
             "lng": longitude,
-
             "distance": distance,
-
             "price": price,
-
             "age": age,
-
             "eligible": bool(eligible)
 
         }
@@ -329,7 +322,8 @@ def render_map(
     max_age,
     data_loaded,
     campus_lat,
-    campus_lon
+    campus_lon,
+    campus_name
 ):
     """
     Render the interactive Google Map.
@@ -403,17 +397,16 @@ def render_map(
         "apiKey": maps_browser_key,
 
         "campus": {
-
+            "name": campus_name,
             "lat": float(campus_lat),
-
             "lng": float(campus_lon)
 
         },
 
         "radius": float(radius),
-
+        
         "hasData": bool(data_loaded),
-
+        
         "stations": map_stations
 
     }

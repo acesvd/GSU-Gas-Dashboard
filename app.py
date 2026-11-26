@@ -5,6 +5,13 @@ import requests
 import pandas as pd
 import streamlit as st
 
+from config import (
+    CAMPUSES,
+    DEFAULT_CAMPUS,
+    CAMPUS_SEARCH_PROFILES,
+    DEFAULT_SEARCH_PROFILE
+)
+
 # ============================================================
 # IMPORT PROJECT MODULES
 # ============================================================
@@ -49,15 +56,79 @@ st.set_page_config(
     layout="wide",
 )
 
-# Georgia State University - Buckhead Campus
-CAMPUS_LAT = 33.848057
-CAMPUS_LON = -84.370042
+# Available campuses
+available_campuses = [
+    name
+    for name, location in CAMPUSES.items()
+    if location["lat"] is not None
+    and location["lon"] is not None
+]
 
+# Campus selection
+st.sidebar.header("Campus Selection")
+
+selected_campus = st.sidebar.selectbox(
+    "Select Campus",
+    options=available_campuses,
+    index=available_campuses.index(DEFAULT_CAMPUS),
+    key="selected_campus",
+)
+
+# Selected campus coordinates
+CAMPUS_LAT = CAMPUSES[selected_campus]["lat"]
+CAMPUS_LON = CAMPUSES[selected_campus]["lon"]
+
+# # Select the campus-specific search configuration
+# selected_search_profile = CAMPUS_SEARCH_PROFILES.get(
+#     selected_campus,
+#     DEFAULT_SEARCH_PROFILE
+# )
+
+default_search_profile = CAMPUS_SEARCH_PROFILES.get(
+    selected_campus,
+    DEFAULT_SEARCH_PROFILE
+)
+
+selected_search_profile = default_search_profile
+
+# Temporary developer testing controls
+with st.sidebar.expander(
+    "Developer Settings",
+    expanded=False
+):
+
+    override_search_profile = st.checkbox(
+        "Override default search profile",
+        value=False
+    )
+
+    if override_search_profile:
+
+        profile_options = [
+            "sparse",
+            "standard",
+            "dense"
+        ]
+
+        selected_search_profile = st.selectbox(
+            "Search Profile",
+            options=profile_options,
+            index=profile_options.index(
+                default_search_profile
+            ),
+            key=f"search_profile_{selected_campus}"
+        )
+
+    st.caption(
+        f"Active search profile: "
+        f"{selected_search_profile.title()}"
+    )
 
 # ============================================================
 # 2. DASHBOARD HEADER
 # ============================================================
 
+# Dashboard header styling
 st.markdown(
     """
     <style>
@@ -80,11 +151,22 @@ st.markdown(
         h1.story-title {
           font-size: clamp(26px, 8vw, 38px);
           line-height: 1.1;
+          letter-spacing: -0.03em;
           max-width: 100%;
         }
       }
     </style>
-    <h1 class="story-title">What is the best gas station to fill up near campus?</h1>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Dynamic dashboard title
+st.markdown(
+    f"""
+    <h1 class="story-title">
+        What is the best gas station to fill up near
+        {escape(selected_campus)} Campus?
+    </h1>
     <div class="story-accent"></div>
     """,
     unsafe_allow_html=True,
@@ -96,6 +178,14 @@ st.markdown(
 # ============================================================
 
 st.sidebar.header("Google Places Data")
+
+st.sidebar.caption(
+    f"Search location: GSU {selected_campus} Campus"
+)
+
+# Initialize campus-specific session storage
+if "campus_data" not in st.session_state:
+    st.session_state["campus_data"] = {}
 
 preview_mode = st.sidebar.toggle(
     "Design preview (no live data)",
@@ -132,15 +222,16 @@ if refresh_requested:
                     api_key=api_key,
                     campus_lat=CAMPUS_LAT,
                     campus_lon=CAMPUS_LON,
+                    search_profile=selected_search_profile
                 )
             )
 
-            # Store retrieved data in session state.
-            st.session_state["station_data"] = station_data
-
-            st.session_state["search_metadata"] = (
-                search_metadata
-            )
+            # Store retrieved data for the selected campus
+            st.session_state["campus_data"][selected_campus] = {
+                "station_data": station_data,
+                "search_metadata": search_metadata,
+                "retrieved_at": pd.Timestamp.now(tz="UTC"),
+            }
 
         st.sidebar.success(
             "Gas station data retrieved!"
@@ -165,14 +256,40 @@ if refresh_requested:
             f"Google Places data error: {error}"
         )
 
+# Retrieve stored data for the selected campus
+campus_record = st.session_state["campus_data"].get(
+    selected_campus,
+    {},
+)
+
+raw_data = campus_record.get("station_data")
+
+search_metadata = campus_record.get("search_metadata")
+
+retrieved_at = campus_record.get("retrieved_at")
+
+if retrieved_at is not None and not preview_mode:
+
+    local_time = retrieved_at.tz_convert(
+        "America/New_York"
+    )
+
+    st.sidebar.caption(
+        f"{selected_campus} Campus data retrieved: "
+        f"{local_time:%b %d, %Y at %I:%M %p %Z}"
+    )
+
+elif not preview_mode:
+
+    st.sidebar.info(
+        f"No data retrieved for {selected_campus} "
+        "Campus. Click Get Latest Gas Prices."
+    )
+
 
 # ============================================================
 # 5. API SEARCH INFORMATION
 # ============================================================
-
-search_metadata = st.session_state.get(
-    "search_metadata"
-)
 
 if search_metadata is not None and not preview_mode:
 
@@ -192,8 +309,9 @@ if search_metadata is not None and not preview_mode:
     )
 
     st.sidebar.info(
-        f"Found {unique_listings} unique Google listings "
-        "within 3 miles."
+        f"Considered {unique_listings} gas station "
+        f"listings within 3 miles of "
+        f"{selected_campus} Campus."
     )
 
     if capped_searches > 0:
@@ -207,15 +325,186 @@ if search_metadata is not None and not preview_mode:
         f"Google Places requests in last fetch: "
         f"{requests_made}"
     )
+    
+    
+    # ----------------------------------------------
+    # SEARCH AND CLEANING DIAGNOSTICS
+    # ----------------------------------------------
+
+    with st.sidebar.expander(
+        "Search & Cleaning Diagnostics",
+        expanded=False
+    ):
+
+        # API retrieval metrics
+        st.markdown("**API Retrieval**")
+              
+        st.write(
+            "Search profile:",
+            search_metadata.get(
+                "search_profile",
+                "N/A"
+            ).title()
+        )
+
+        grid_size = search_metadata.get(
+            "search_grid_size"
+        )
+
+        if grid_size is not None:
+
+            st.write(
+                f"Search grid: {grid_size} × {grid_size}"
+            )
+
+        st.write(
+            "Search circle radius (miles):",
+            search_metadata.get(
+                "search_circle_radius",
+                "N/A"
+            )
+        )
+
+        st.write(
+            "API requests:",
+            search_metadata.get("requests_made", "N/A")
+        )
+
+        st.write(
+            "Searches reaching limit:",
+            search_metadata.get("capped_searches", "N/A")
+        )
+
+        st.write(
+            "Raw API records:",
+            search_metadata.get("raw_results", "N/A")
+        )
+
+        st.write(
+            "Unique Google Place IDs:",
+            search_metadata.get("unique_google_ids", "N/A")
+        )
+        
+        st.divider()
+
+        # Data cleaning metrics
+        st.markdown("**Data Cleaning**")
+
+        st.write(
+            "Missing Place IDs:",
+            search_metadata.get("missing_place_ids", "N/A")
+        )
+
+        st.write(
+            "Repeated Place IDs removed:",
+            search_metadata.get("repeated_place_ids", "N/A")
+        )
+
+        st.write(
+            "Closed businesses removed:",
+            search_metadata.get("closed_businesses_removed", "N/A")
+        )
+
+        st.write(
+            "Colocated duplicates removed:",
+            search_metadata.get("colocated_duplicates_removed", "N/A")
+        )
+
+        st.write(
+            "Unverified listings removed:",
+            search_metadata.get("unverified_listings_removed", "N/A")
+        )
+
+        st.write(
+            "Invalid locations removed:",
+            search_metadata.get("invalid_locations_removed", "N/A")
+        )
+
+        st.write(
+            "Outside maximum radius:",
+            search_metadata.get("outside_radius_removed", "N/A")
+        )
+
+        st.divider()
+
+        # Final retrieval results
+        st.markdown("**Final Results**")
+
+        st.write(
+            "Retained station listings:",
+            search_metadata.get("unique_listings", "N/A")
+        )
+
+        st.write(
+            "Stations with regular prices:",
+            search_metadata.get("stations_with_prices", "N/A")
+        )
+
+        st.write(
+            "Stations without regular prices:",
+            search_metadata.get("stations_without_prices", "N/A")
+        )
+
+        # Data integrity check
+        difference = search_metadata.get(
+            "reconciliation_difference"
+        )
+
+        if difference == 0:
+
+            st.success("Record counts reconciled.")
+
+        elif difference is not None:
+
+            st.warning(
+                f"Record count discrepancy: {difference}"
+            )
+
+        else:
+
+            st.caption(
+                "Refresh data to obtain reconciliation results."
+            )
+            
+        st.divider()
+
+        st.markdown("**Individual Search Areas**")
+
+        search_details = search_metadata.get(
+            "search_details",
+            []
+        )
+
+        if search_details:
+
+            search_df = pd.DataFrame(search_details)
+
+            search_df.index = range(
+                1,
+                len(search_df) + 1
+            )
+
+            search_df.index.name = "Search"
+
+            search_df = search_df.rename(
+                columns={
+                    "north_offset": "North Offset",
+                    "east_offset": "East Offset",
+                    "radius_miles": "Radius",
+                    "returned": "Results",
+                    "hit_cap": "Capped"
+                }
+            )
+
+            st.dataframe(
+                search_df,
+                width="stretch"
+            )
 
 
 # ============================================================
 # 6. LOAD AND CLEAN DATA
 # ============================================================
-
-raw_data = st.session_state.get(
-    "station_data"
-)
 
 data_loaded = (
     not preview_mode
@@ -698,10 +987,12 @@ render_price_charts(
 )
 
 
+
 # ============================================================
-# 13. INTERACTIVE GAS STATION MAP
+# 14. INTERACTIVE GAS STATION MAP
 # ============================================================
 
+# Map section styling
 st.markdown(
     """
     <style>
@@ -728,10 +1019,24 @@ st.markdown(
         margin: 0 0 1.1rem 0;
       }
     </style>
-    <div class="map-section-eyebrow">Explore the area</div>
-    <h2 class="map-section-title">Gas Stations Near Campus</h2>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Dynamic map heading
+st.markdown(
+    f"""
+    <div class="map-section-eyebrow">
+        Explore the area
+    </div>
+
+    <h2 class="map-section-title">
+        Gas Stations Near {escape(selected_campus)} Campus
+    </h2>
+
     <p class="map-section-description">
-      Adjust the search radius and compare eligible stations around campus.
+        Adjust the search radius and compare eligible
+        stations around {escape(selected_campus)} Campus.
     </p>
     """,
     unsafe_allow_html=True,
@@ -743,6 +1048,7 @@ st.markdown(
 # Moving the slider locally filters the station
 # data without requesting new Google Places data.
 
+# Render interactive map
 render_map(
     df=df,
     radius=radius,
@@ -750,11 +1056,12 @@ render_map(
     data_loaded=data_loaded,
     campus_lat=CAMPUS_LAT,
     campus_lon=CAMPUS_LON,
+    campus_name=selected_campus,
 )
 
 
 # ============================================================
-# 14. AVAILABLE GAS STATIONS TABLE
+# 15. AVAILABLE GAS STATIONS TABLE
 # ============================================================
 
 st.markdown(
@@ -783,11 +1090,22 @@ st.markdown(
         margin: 0 0 1.1rem 0;
       }
     </style>
-    <div class="table-section-eyebrow">Review every option</div>
-    <h2 class="table-section-title">Available Gas Stations</h2>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Dynamic table heading
+st.markdown(
+    f"""
+    <h2 class="table-section-title">
+        Available Gas Stations Near
+        {escape(selected_campus)} Campus
+    </h2>
+
     <p class="table-section-description">
-      Review station details, regular gas prices and reported freshness
-      within the selected radius.
+        Review station details, regular gas prices,
+        and reported freshness for stations near
+        {escape(selected_campus)} Campus.
     </p>
     """,
     unsafe_allow_html=True,
@@ -804,20 +1122,64 @@ if filtered.empty:
             "Load gas station data from the sidebar to see station prices here."
         )
 else:
+    # Identify the best station and all lowest-price stations.
+    best_station = get_best_station(filtered)
 
-    def highlight_lowest_price(prices):
-        numeric_prices = pd.to_numeric(prices, errors="coerce")
-        lowest_price = numeric_prices.min()
+    cheapest_stations = get_cheapest_stations(filtered)
+
+    best_id = best_station["Place ID"]
+
+    cheapest_ids = set(cheapest_stations["Place ID"])
+
+
+    # Create a separate display dataframe.
+    display_df = filtered.copy()
+
+
+    def get_recommendation(row):
+
+        if row["Place ID"] == best_id:
+            return "★ Best Value"
+
+        if row["Place ID"] in cheapest_ids:
+            return "Lowest Price"
+
+        return ""
+
+
+    display_df["Recommendation"] = display_df.apply(
+        get_recommendation,
+        axis=1
+    )
+
+
+    # Highlight recommendation and price cells.
+    def highlight_recommendation(row):
+
+        if row["Place ID"] == best_id:
+
+            style = (
+                "background-color: #dcfce7; "
+                "color: #166534; "
+                "font-weight: 800;"
+            )
+
+        elif row["Place ID"] in cheapest_ids:
+
+            style = (
+                "background-color: #ccfbf1; "
+                "color: #115e59; "
+                "font-weight: 700;"
+            )
+
+        else:
+
+            style = "color: #1d4ed8; font-weight: 700;"
 
         return [
-            (
-                "background-color: #dcfce7; color: #166534; font-weight: 800"
-                if pd.notna(price) and price == lowest_price
-                else "color: #1d4ed8; font-weight: 700"
-                if pd.notna(price)
-                else ""
-            )
-            for price in numeric_prices
+            style if col in ["Regular Price", "Recommendation"]
+            else ""
+            for col in row.index
         ]
 
     table_styles = [
@@ -845,9 +1207,9 @@ else:
     ]
 
     styled_table = (
-        filtered.style
+        display_df.style
         .set_table_styles(table_styles)
-        .apply(highlight_lowest_price, subset=["Regular Price"])
+        .apply(highlight_recommendation, axis=1)
     )
 
     st.container(border=True).dataframe(
@@ -860,7 +1222,9 @@ else:
         "Download filtered stations (CSV)",
         data=filtered.to_csv(index=False).encode("utf-8"),
         file_name=(
-            f"gsu_gas_stations_{pd.Timestamp.now():%Y-%m-%d}.csv"
+            f"gsu_gas_stations_"
+            f"{selected_campus.lower().replace(' ', '_')}_"
+            f"{pd.Timestamp.now():%Y-%m-%d}.csv"
         ),
         mime="text/csv",
     )

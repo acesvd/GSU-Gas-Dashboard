@@ -34,7 +34,8 @@ export default function (component) {
     const MAX_RADIUS = 3.00;
 
     const COLORS = {
-        cheapest: "#16a34a",
+        best: "#16a34a",
+        cheapest: "#0d9488",
         eligible: "#2563eb",
         unavailable: "#94a3b8",
         campus: "#d97706",
@@ -70,7 +71,11 @@ export default function (component) {
 
         latestData: null,
 
-        activeStationId: null
+        activeStationId: null,
+
+        campusMarker: null,
+
+        campusSignature: null,
 
     };
 
@@ -176,7 +181,7 @@ export default function (component) {
 
 
         // ----------------------------------------------
-        // IDENTIFY ELIGIBLE PRICES
+        // IDENTIFY AND RANK ELIGIBLE STATIONS
         // ----------------------------------------------
 
         const eligibleStations = visibleStations
@@ -186,7 +191,7 @@ export default function (component) {
             )
             .sort((a, b) => {
 
-                // Lowest price first.
+                // Priority 1: Lowest price.
                 const priceDifference =
                     a.station.price - b.station.price;
 
@@ -194,11 +199,20 @@ export default function (component) {
                     return priceDifference;
                 }
 
-                // For equal prices, prefer closer stations.
-                return (
-                    a.station.distance -
-                    b.station.distance
-                );
+                // Priority 2: Shortest distance.
+                const distanceDifference =
+                    a.station.distance - b.station.distance;
+
+                if (distanceDifference !== 0) {
+                    return distanceDifference;
+                }
+
+                // Priority 3: Deterministic Place ID tie-breaker.
+                return a.station.id < b.station.id
+                    ? -1
+                    : a.station.id > b.station.id
+                        ? 1
+                        : 0;
 
             });
 
@@ -241,6 +255,12 @@ export default function (component) {
                 ) < 0.000001
             );
 
+            const isBest = (
+                isCheapest &&
+                bestStation !== null &&
+                station.id === bestStation.id
+            );
+
 
             // Assign marker color.
             let markerColor = COLORS.unavailable;
@@ -253,24 +273,33 @@ export default function (component) {
                 markerColor = COLORS.cheapest;
             }
 
+            if (isBest) {
+                markerColor = COLORS.best;
+            }
 
             // Update existing pin.
             item.pin.background = markerColor;
 
-            item.pin.glyphText = isCheapest
-                ? "$"
-                : "";
+            item.pin.glyphText = isBest
+                ? "★"
+                : isCheapest
+                    ? "$"
+                    : "";
 
-            item.pin.scale = isCheapest
-                ? 1.2
-                : 1.0;
+            // Make the best station more prominent.
+            item.pin.scale = isBest
+                ? 1.35
+                : isCheapest
+                    ? 1.1
+                    : 1.0;
 
-            item.marker.zIndex = isCheapest
-                ? 1000
-                : 100;
-
+            // Prioritize the best station when markers overlap.
+            item.marker.zIndex = isBest
+                ? 2000
+                : isCheapest
+                    ? 1000
+                    : 100;
         }
-
 
         // ----------------------------------------------
         // CLOSE POPUP IF ITS STATION IS HIDDEN
@@ -694,6 +723,69 @@ export default function (component) {
 
     }
 
+    // ==================================================
+    // SYNCHRONIZE CAMPUS LOCATION
+    // ==================================================
+
+    function syncCampusLocation() {
+
+        if (!state.map || !state.campusMarker) {
+            return;
+        }
+
+        // Retrieve the selected campus
+        const campus = state.latestData.campus;
+
+        // Create an identifier for the campus
+        const signature = JSON.stringify(campus);
+
+        // Do nothing if the campus has not changed
+        if (signature === state.campusSignature) {
+            return;
+        }
+
+        // Extract campus coordinates
+        const position = {
+            lat: campus.lat,
+            lng: campus.lng
+        };
+
+        // Close any previous station popup
+        if (state.infoWindow) {
+            state.infoWindow.close();
+        }
+
+        state.activeStationId = null;
+
+        // Move the campus marker
+        state.campusMarker.position = position;
+
+        // Update the marker title
+        state.campusMarker.title =
+            `GSU ${campus.name} Campus`;
+
+        // Move the search radius circle
+        state.circle.setCenter(position);
+
+        // Create bounds for the new campus search area
+        const maximumCircle = new google.maps.Circle({
+            center: position,
+            radius: MAX_RADIUS * MILES_TO_METERS
+        });
+
+        const bounds = maximumCircle.getBounds();
+
+        // Recenter and fit the map
+        if (bounds) {
+            state.map.fitBounds(bounds);
+        } else {
+            state.map.setCenter(position);
+        }
+
+        // Record the newly displayed campus
+        state.campusSignature = signature;
+    }
+
 
     // ==================================================
     // 10. INITIALIZE GOOGLE MAP
@@ -809,19 +901,22 @@ export default function (component) {
             });
 
 
-            new AdvancedMarkerElement({
-
+            state.campusMarker = new AdvancedMarkerElement({
                 map: state.map,
 
-                position: campus,
+                position: {
+                    lat: campus.lat,
+                    lng: campus.lng
+                },
 
                 content: campusPin,
 
-                title: "GSU Buckhead Campus",
+                title: `GSU ${campus.name} Campus`,
 
                 zIndex: 2000
-
             });
+
+            state.campusSignature = JSON.stringify(campus);
 
 
             // ------------------------------------------
@@ -854,6 +949,7 @@ export default function (component) {
 
 
         // Add stations and apply the selected radius.
+        syncCampusLocation();
         syncStationMarkers();
 
     }
@@ -865,9 +961,10 @@ export default function (component) {
 
     if (state.map) {
 
-        // Streamlit has rerun, but the existing map
-        // can be reused.
+        // Update campus location if necessary
+        syncCampusLocation();
 
+        // Update gas station markers
         syncStationMarkers();
 
     } else if (!state.initializing) {

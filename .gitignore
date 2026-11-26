@@ -77,3 +77,9 @@ Desktop.ini
 # 10. Log Files
 # ------------------------------------------
 *.log
+
+# ------------------------------------------
+# 11. Local AI coding assistant skills
+# ------------------------------------------
+.agents/skills/developing-with-streamlit
+.claude/skills/developing-with-streamlit
