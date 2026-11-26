@@ -217,13 +217,83 @@ with st.sidebar.expander(
 # GAS PRICE REFRESH BUTTON
 # ============================================================
 
+# ============================================================
+# API KEY CONFIGURATION
+# ============================================================
+
+use_default_key = st.secrets.get(
+    "USE_DEFAULT_PLACES_KEY",
+    False
+)
+
+with st.popover("🔑 API Configuration"):
+
+    st.markdown("**Google Places API Key**")
+
+    visitor_api_key = st.text_input(
+        "Enter your API key",
+        type="password",
+        key="visitor_places_api_key",
+        placeholder="Enter your Google Places API key"
+    ).strip()
+
+    st.caption(
+        "Your key is used during your current session "
+        "to retrieve live gas prices. Requests may "
+        "consume your Google Cloud billing allowance."
+    )
+
+    st.markdown(
+        "[How to obtain an API key]"
+        "(https://developers.google.com/maps/"
+        "documentation/places/web-service/get-api-key)"
+    )
+
+    if visitor_api_key:
+
+        st.success("API key provided")
+
+    elif use_default_key:
+
+        st.info("Using the configured default API key.")
+
+    else:
+
+        st.info("An API key is required for live gas prices.")
+
+
+# Determine which API key to use.
+
+if visitor_api_key:
+
+    api_key = visitor_api_key
+
+elif use_default_key:
+
+    api_key = st.secrets.get(
+        "GOOGLE_PLACES_API_KEY",
+        ""
+    )
+
+else:
+
+    api_key = ""
+
+
 with refresh_col:
 
     refresh_requested = st.button(
         "Get Latest Gas Prices",
         type="primary",
-        disabled=preview_mode,
+        disabled=preview_mode or not api_key,
         width="stretch",
+        help=(
+            "Retrieve live gas prices using "
+            "the configured API key."
+            if api_key
+            else
+            "Enter your API key in API Configuration."
+        )
     )
 
 
@@ -257,8 +327,6 @@ if refresh_requested:
     try:
 
         with st.spinner("Retrieving gas station data..."):
-
-            api_key = st.secrets["GOOGLE_PLACES_API_KEY"]
 
             station_data, search_metadata = (
                 fetch_google_stations(
@@ -326,10 +394,19 @@ elif retrieved_at is not None:
 
 else:
 
-    status_area.info(
-        f"Click Get Latest Gas Prices to explore "
-        f"stations near {selected_campus} Campus."
-    )
+    if not api_key:
+
+        status_area.info(
+            "Enter your Google Places API key under "
+            "API Configuration to explore nearby gas stations."
+        )
+
+    else:
+
+        status_area.info(
+            f"Click Get Latest Gas Prices to explore "
+            f"stations near {selected_campus} Campus."
+        )
 
 
 # ============================================================
